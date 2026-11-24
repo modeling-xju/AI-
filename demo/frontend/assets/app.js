@@ -257,9 +257,14 @@ async function renderOverview() {
       <td class="classes">${classChips(m.classes)}</td>
     </tr>`).join('');
   const body = `
-    <section class="head">
-      <div><h1>${esc(p.name)}</h1><p class="muted">${esc(p.root)}</p>
-        ${projectMeta(p)}</div>
+    <section class="hero">
+      <div class="hero-left">
+        <p class="hero-kicker">PROJECT · ${esc(p.name)}</p>
+        <h1 class="hero-title">把遗留 Java 代码，<br>还原成<span class="grad">需求与架构</span>。</h1>
+        <p class="hero-sub">结构事实保证每条结论都能回到源文件与行号，语义归纳补上「这段代码在实现什么」。
+          六模块从仓库接入一路走到接口文档、用户手册与完整报告。</p>
+        <div class="hero-meta">${projectMeta(p)}</div>
+      </div>
       <div class="hud-block">
         <div><span>CPG</span><i></i><b>${p.graph_nodes ? `${p.graph_nodes} nodes` : 'not exported'}</b></div>
         <div><span>EDGES</span><i></i><b>${p.graph_edges ? `${p.graph_edges} edges` : '—'}</b></div>

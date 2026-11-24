@@ -115,6 +115,31 @@ p { margin: 6px 0; }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* ---------------------------------------------------------------- 首屏 hero */
+.hero {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px; align-items: start; padding: 6px 0 30px;
+}
+.hero-kicker {
+  margin: 0 0 14px; font: 500 10.5px/1 var(--mono); letter-spacing: .2em;
+  text-transform: uppercase; color: var(--faint);
+}
+.hero-title {
+  margin: 0; font-size: clamp(32px, 4vw, 52px); line-height: 1.14;
+  letter-spacing: -.032em; font-weight: 700;
+}
+.hero-title .grad {
+  background: linear-gradient(96deg, var(--primary) 8%, var(--cyan) 62%, #57d2c4);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero-left { min-width: 0; }
+.hero-sub { margin: 16px 0 0; max-width: 62ch; font-size: 13.5px; color: var(--muted); }
+.hero-meta { margin-top: 2px; }
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; gap: 18px; }
+  .hero .hud-block { display: none; }
+}
+
 /* ---------------------------------------------------------------- 工程条 */
 .project-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -318,3 +343,6 @@ details.panel.fn > ul.tree { padding: 0 18px 12px; }
 .toast { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%);
   background: var(--ink); color: #fff; padding: 9px 16px; border-radius: 4px; font-size: 12.5px;
   box-shadow: 0 10px 30px rgba(13, 13, 13, .18); z-index: 20; }
+
+/* 手机上输入框字号 ≥16px，避免 iOS 聚焦时整页放大 */
+@media (max-width: 640px) { input, select { font-size: 16px; } }
