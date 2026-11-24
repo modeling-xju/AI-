@@ -393,7 +393,30 @@ details.fold > p.muted { margin: 0 0 14px; font-size: 12px; }
   background: #fbfcfd; border: 1px solid var(--line-soft); border-radius: 4px; padding: 8px 10px; }
 
 /* ---------------------------------------------------------------- 文档页 */
-.docs-wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+.doc-tabs { display: flex; gap: 4px; margin: 6px 0 18px; border-bottom: 1px solid var(--line); }
+.doc-tabs .tab {
+  border: none; background: none; border-radius: 0; padding: 10px 14px; height: auto;
+  font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.doc-tabs .tab:hover { color: var(--ink); border-color: transparent; }
+.doc-tabs .tab.on { color: var(--ink); font-weight: 650; border-bottom-color: var(--ink); }
+.doc-tabs .tab[data-empty] { color: #b6bcc2; }
+.tab-meta { margin-left: 8px; font: 400 10.5px/1 var(--mono); color: var(--faint); }
+.doc-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 26px; align-items: start; }
+@media (max-width: 980px) { .doc-layout { grid-template-columns: 1fr; } }
+.doc-rail { position: sticky; top: 78px; }
+@media (max-width: 980px) { .doc-rail { position: static; } }
+.rail-label { margin: 0 0 8px; font: 500 10px/1 var(--mono); letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint); }
+.toc { list-style: none; margin: 0 0 20px; padding: 0; border-left: 1px solid var(--line);
+  max-height: 520px; overflow: auto; }
+.toc a { display: block; margin-left: -1px; padding: 6px 12px; font-size: 12.5px; color: var(--muted);
+  text-decoration: none; border-left: 2px solid transparent; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.toc a:hover { color: var(--primary); text-decoration: none; }
+.toc a.on { color: var(--ink); font-weight: 600; border-left-color: var(--primary); }
+.doc-wrap .doc { max-height: 720px; }
+.docs-wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 26px; align-items: start; }
 @media (max-width: 980px) { .docs-wrap { grid-template-columns: 1fr; } }
 .docs li { margin: 6px 0; font-size: 13px; }
 .doc { background: #fff; border: 1px solid var(--line); border-radius: var(--radius);

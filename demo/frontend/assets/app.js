@@ -11,6 +11,8 @@ const state = {
   graph: { op: 'callers', cls: 0, from: '', to: '' },
   impactClass: 0,
   docId: 0,
+  docKind: '',
+  searchSel: 0,
 };
 
 const $app = document.getElementById('app');
@@ -822,17 +824,43 @@ async function renderCompare() {
 /* ------------------------------------------------------------------ 视图：文档 */
 async function renderDocs() {
   const list = await api(`/api/projects/${state.pid}/documents`);
-  const items = list.documents.map((d) => `
-    <li><a href="#" data-doc="${d.id}">${esc(d.title)}</a>
-      <span class="muted">${esc(d.kind)} · ${esc(d.created_at)}</span></li>`).join('');
-  let preview = '<p class="muted">生成或打开一份文档，正文会显示在这里。</p>';
+  const docs = list.documents || [];
+  const KIND_LABEL = { api: '接口文档', manual: '用户手册', report: '分析报告' };
+  // 同类多份（重新生成过）只留最新一份
+  const latest = new Map();
+  docs.forEach((d) => { if (!latest.has(d.kind)) latest.set(d.kind, d); });
+  const kinds = ['api', 'manual', 'report'];
+  if (state.docKind && latest.has(state.docKind)) {
+    state.docId = latest.get(state.docKind).id;
+  } else if (!docs.some((d) => d.id === state.docId)) {
+    const first = [...latest.values()][0];
+    state.docId = first ? first.id : 0;
+    state.docKind = first ? first.kind : '';
+  }
+  const activeKind = (docs.find((d) => d.id === state.docId) || {}).kind || state.docKind;
+
+  const tabs = kinds.map((k) => {
+    const d = latest.get(k);
+    return `<button class="tab ${k === activeKind ? 'on' : ''}" data-kind="${k}" ${d ? '' : 'data-empty="1"'}>
+      ${KIND_LABEL[k]}<span class="tab-meta">${d ? esc(String(d.created_at).slice(11, 16)) : '未生成'}</span></button>`;
+  }).join('');
+
+  let preview = '<p class="muted">选一个标签页生成或查看文档。</p>';
+  let toc = '';
   if (state.docId) {
     const doc = await api(`/api/projects/${state.pid}/documents/${state.docId}`);
-    preview = `<div class="doc-head">
-        <a class="btn" href="/api/projects/${state.pid}/documents/${state.docId}/export">导出 Markdown</a>
-        <span class="muted">${esc(doc.title)} · ${esc(doc.created_at)}</span>
-      </div><div class="doc">${doc.html}</div>`;
+    // 给 h2 加锚点，生成右侧目录
+    const dom = new DOMParser().parseFromString(doc.html, 'text/html');
+    const heads = [...dom.querySelectorAll('h2')];
+    heads.forEach((h, i) => { h.id = `sec-${i}`; });
+    const tocItems = heads.map((h, i) =>
+      `<li><a href="#sec-${i}" data-sec="${i}">${esc(h.textContent)}</a></li>`).join('');
+    toc = tocItems
+      ? `<p class="rail-label">目录</p><ul class="toc">${tocItems}</ul>`
+      : '<p class="muted">这份文档没有二级标题</p>';
+    preview = `<div class="doc">${dom.body.innerHTML}</div>`;
   }
+
   draw(`
     <section class="head"><div><h1>文档生成</h1>
       <p class="muted">按代码结构生成接口文档、用户手册与分析报告；每条结论都保留源码位置。</p></div></section>
@@ -841,27 +869,48 @@ async function renderDocs() {
       <button data-gen="manual">生成用户手册</button>
       <button data-gen="report">生成分析报告</button>
     </div>
-    <div class="docs-wrap">
-      <div><h2>已生成</h2><ul class="plain docs">${items || '<li class="muted">还没有文档</li>'}</ul></div>
-      <div><h2>预览</h2>${preview}</div>
-    </div>`);
+    <div class="doc-tabs">${tabs}</div>
+    ${state.docId ? `<div class="doc-layout">
+      <aside class="doc-rail">${toc}
+        <p class="rail-label">操作</p>
+        <p><a class="btn" href="/api/projects/${state.pid}/documents/${state.docId}/export">导出 Markdown</a></p>
+      </aside>
+      <div class="doc-wrap">${preview}</div>
+    </div>` : '<p class="muted">还没有文档，先点上面的生成按钮。</p>'}`);
+
   document.querySelectorAll('[data-gen]').forEach((b) => {
     b.onclick = async () => {
       try {
         const r = await api(`/api/projects/${state.pid}/documents/${b.dataset.gen}`, { method: 'POST' });
         state.docId = r.id;
+        state.docKind = b.dataset.gen;
         toast('已生成：' + r.title);
         renderDocs();
       } catch (err) { toast(err.message); }
     };
   });
-  document.querySelectorAll('[data-doc]').forEach((a) => {
-    a.onclick = (e) => {
-      e.preventDefault();
-      state.docId = Number(a.dataset.doc);
+  document.querySelectorAll('.doc-tabs .tab').forEach((b) => {
+    b.onclick = () => {
+      const d = latest.get(b.dataset.kind);
+      if (!d) { toast('这份文档还没生成，先点上面的生成按钮'); return; }
+      state.docKind = b.dataset.kind;
+      state.docId = d.id;
       renderDocs();
     };
   });
+  // 目录跳转：在预览框内滚动，并高亮当前项
+  const tocEl = document.querySelector('.doc-rail .toc');
+  const pane = document.querySelector('.doc-wrap .doc');
+  if (tocEl && pane) {
+    tocEl.querySelectorAll('a').forEach((a) => {
+      a.onclick = (e) => {
+        e.preventDefault();
+        const t = pane.querySelector(`#sec-${a.dataset.sec}`);
+        if (t) pane.scrollTo({ top: t.offsetTop - 8, behavior: 'smooth' });
+        tocEl.querySelectorAll('a').forEach((x) => x.classList.toggle('on', x === a));
+      };
+    });
+  }
 }
 
 /* ------------------------------------------------------------------ 路由 */
