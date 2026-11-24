@@ -519,12 +519,16 @@ def impact(pid, class_id):
         reverse[row["callee_id"]].add(row["caller_id"])
 
     seen = {class_id}
+    dist = {class_id: 0}
+    parent = {}
     queue = [class_id]
     while queue:
         current = queue.pop(0)
-        for caller in reverse.get(current, ()):
+        for caller in sorted(reverse.get(current, ())):
             if caller not in seen:
                 seen.add(caller)
+                dist[caller] = dist[current] + 1
+                parent[caller] = current
                 queue.append(caller)
 
     origin = by_id[class_id]
@@ -540,11 +544,24 @@ def impact(pid, class_id):
             touched_modules.add(module_id)
 
     function_rows = [row for row in functions if row["module_id"] in touched_modules]
+
+    def node(n):
+        return {"id": by_id[n]["id"], "name": by_id[n]["name"], "layer": by_id[n]["layer"],
+                "module": module_names.get(by_id[n].get("module_id"), "")}
+
+    # 最深的几条影响链，给前端画「影响路径」
+    chains = []
+    for target in sorted((n for n in dist if n != class_id), key=lambda n: -dist[n])[:4]:
+        path = [target]
+        while path[-1] != class_id and path[-1] in parent:
+            path.append(parent[path[-1]])
+        chains.append([node(n) for n in path])
+
     return {
         "origin": {"id": origin["id"], "name": origin["name"], "layer": origin["layer"]},
-        "classes": [{"id": by_id[n]["id"], "name": by_id[n]["name"], "layer": by_id[n]["layer"],
-                     "module": module_names.get(by_id[n].get("module_id"), "")}
-                    for n in sorted(seen)],
+        "classes": [{**node(n), "hop": dist[n]} for n in sorted(seen, key=lambda x: (dist[x], x))],
+        "chains": chains,
+        "max_hop": max(dist.values()) if dist else 0,
         "modules": [{"id": mid, "name": module_names.get(mid, "")}
                     for mid in sorted(touched_modules)],
         "functions": [{"id": row["id"], "name": row["name"],

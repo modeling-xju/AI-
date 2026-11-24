@@ -77,6 +77,10 @@ def overview(pid):
         (pid,))["n"]
     document_count = db.query_one("SELECT COUNT(*) AS n FROM documents WHERE project_id=?",
                                   (pid,))["n"]
+    # 被调用最多的类：影响页默认从它出发，演示起来比按名字排第一的类有看头
+    hot = db.query_one("SELECT callee_id, COUNT(*) AS n FROM calls WHERE project_id=? "
+                       "AND callee_id IS NOT NULL GROUP BY callee_id "
+                       "ORDER BY n DESC, callee_id LIMIT 1", (pid,))
     return {
         "project": {"id": project_row["id"], "name": project_row["name"],
                     "engine": project_row["engine"] or "self",
@@ -90,6 +94,7 @@ def overview(pid):
                     "languages": db.load_json(project_row["languages"]) or {},
                     "graph_nodes": project_row["graph_nodes"] or 0,
                     "graph_edges": project_row["graph_edges"] or 0,
+                    "impact_hot": hot["callee_id"] if hot else 0,
                     "created_at": project_row["created_at"]},
         "metrics": metrics,
         "modules": modules,

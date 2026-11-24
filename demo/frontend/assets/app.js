@@ -764,26 +764,79 @@ async function renderSearch() {
   };
 }
 
+/* 同名功能在不同模块里可能各有一条，按名字去重后再展示 */
+function uniqueFunctionChips(functions, limit = 18) {
+  const seen = new Map();
+  (functions || []).forEach((f) => {
+    const name = String(f.name || f).trim();
+    if (!seen.has(name)) seen.set(name, []);
+    seen.get(name).push(f.module || '');
+  });
+  const names = [...seen.keys()];
+  const chips = names.slice(0, limit).map((name) => {
+    const mods = seen.get(name).filter(Boolean);
+    const title = mods.length ? `${name} · ${[...new Set(mods)].join(' / ')}` : name;
+    return `<span class="chip" title="${esc(title)}">${esc(name)}</span>`;
+  }).join('');
+  const rest = names.length - Math.min(names.length, limit);
+  return chips + (rest > 0 ? `<span class="chip more" title="还有 ${rest} 条">+${rest}</span>` : '');
+}
+
 /* ------------------------------------------------------------------ 视图：影响 */
 async function renderImpact() {
-  const data = await api(`/api/projects/${state.pid}/overview`);
+  const [data, structure] = await Promise.all([
+    api(`/api/projects/${state.pid}/overview`),
+    api(`/api/projects/${state.pid}/structure`),
+  ]);
+  const moduleName = new Map((data.modules || []).map((m) => [m.id, m.name]));
+  // 起点类下拉要用全量类名：overview 里每个模块只回 12 个类
   const classes = [];
-  data.modules.forEach((m) => m.classes.forEach((c) => classes.push({ ...c, module: m.name })));
-  if (!state.impactClass && classes.length) state.impactClass = classes[0].id;
+  (structure.files || []).forEach((f) => (f.classes || []).forEach((c) => classes.push({
+    id: c.id, name: c.name, layer: c.layer, module: moduleName.get(c.module_id) || '',
+  })));
+  classes.sort((a, b) => (a.module + a.name).localeCompare(b.module + b.name, 'zh'));
+  if (!state.impactClass && classes.length) {
+    state.impactClass = data.project.impact_hot || classes[0].id;
+  }
   const options = classes.map((c) =>
     `<option value="${c.id}" ${c.id === state.impactClass ? 'selected' : ''}>${esc(c.module)} / ${esc(c.name)}</option>`).join('');
   let result = '<p class="muted">选一个类，看改动会波及哪些模块与功能。</p>';
   if (state.impactClass) {
     const r = await api(`/api/projects/${state.pid}/impact/${state.impactClass}`);
+    const hops = r.max_hop || 0;
+    const byHop = Array.from({ length: hops + 1 }, () => []);
+    (r.classes || []).forEach((c) => byHop[Math.min(c.hop || 0, hops)].push(c));
+    const flow = `
+      <div class="hop-col origin">
+        <p class="hop-head">起点 · 1 个类</p>
+        <div class="hop-item"><b>${esc(r.origin.name)}</b>
+          <small>${esc(r.origin.layer || '')}</small></div>
+      </div>` + (hops === 0
+      ? '<div class="hop-col"><p class="hop-head">无调用方</p><div class="hop-item"><small>没有类调用它，改动只影响自身。</small></div></div>'
+      : byHop.slice(1).map((list, i) => `
+          <div class="hop-col">
+            <p class="hop-head">${i + 1} 跳 · ${list.length} 个类</p>
+            ${list.map((c) => `<div class="hop-item"><b>${esc(c.name)}</b>
+              <small>${esc(c.layer || '')}${c.module ? ' · ' + esc(c.module) : ''}</small></div>`).join('')}
+          </div>`).join(''));
+    const chains = (r.chains || []).map((chain) => `
+      <li class="chain">${chain.map((c, i) => `${i ? '<span class="arrow">←</span>' : ''}
+        <span class="chip">${esc(c.name)}</span>`).join('')}</li>`).join('');
     result = `
-      <div class="stats">
-        <div class="stat"><b>${r.classes.length}</b><span>受影响类</span></div>
-        <div class="stat"><b>${r.modules.length}</b><span>波及模块</span></div>
-        <div class="stat"><b>${r.functions.length}</b><span>涉及功能</span></div>
+      <div class="numbers tight">
+        <div><b>${r.classes.length}</b><span>受影响类</span></div>
+        <div><b>${r.modules.length}</b><span>波及模块</span></div>
+        <div><b>${r.functions.length}</b><span>涉及功能</span></div>
+        <div><b>${hops}</b><span>最大跳数</span></div>
       </div>
+      <h2>影响扩散</h2>
+      <div class="impact-flow">${flow}</div>
+      ${chains ? `<h2>示例影响链</h2><ul class="plain chains-list">${chains}</ul>` : ''}
       <div class="two">
-        <div><h2>受影响的类</h2><ul class="plain">${r.classes.map((x) => `<li>${esc(x.name || x)}${x.module ? ` <span class="muted">· ${esc(x.module)}</span>` : ''}</li>`).join('') || '<li class="muted">无</li>'}</ul></div>
-        <div><h2>涉及的功能</h2><ul class="plain">${r.functions.map((x) => `<li>${esc(x.name || x)}</li>`).join('') || '<li class="muted">无</li>'}</ul></div>
+        <div><h2>涉及的模块</h2>
+          <p class="chips">${r.modules.map((m) => `<span class="chip">${esc(m.name || m)}</span>`).join('') || '<span class="muted">无</span>'}</p></div>
+        <div><h2>涉及的功能</h2>
+          <p class="chips">${uniqueFunctionChips(r.functions)}</p></div>
       </div>`;
   }
   draw(`

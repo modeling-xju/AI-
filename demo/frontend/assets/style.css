@@ -217,7 +217,30 @@ button.ghost:hover { border-color: var(--primary); color: var(--primary); }
 .metrics-strip { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 14px 0 0;
   font: 500 11.5px/1.7 var(--mono); color: var(--faint); letter-spacing: .01em; }
 .metrics-strip span { white-space: nowrap; }
+.form-panel label { white-space: nowrap; }
 .metrics-strip b { color: var(--ink-2); font-weight: 600; }
+
+/* 影响页：较小的大数字带 */
+.numbers.tight { margin-top: 2px; }
+.numbers.tight b { font-size: 34px; }
+.numbers.tight div { padding: 18px 20px 16px; }
+
+/* 按跳数分栏的扩散视图 */
+.impact-flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: 12px; margin: 10px 0 4px; }
+.hop-col { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
+  background: var(--panel, #fff); }
+.hop-head { margin: 0 0 10px; font: 500 10.5px/1 var(--mono); letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); display: flex; justify-content: space-between; }
+.hop-item { padding: 7px 0; border-top: 1px solid var(--line-soft); }
+.hop-item:first-of-type { border-top: none; }
+.hop-item b { display: block; font-size: 13px; font-weight: 600; }
+.hop-item small { display: block; margin-top: 3px; font-size: 11.5px; color: var(--faint); }
+.hop-col.origin { background: #f7fbfe; border-color: #cfe4f4; }
+.hop-col.origin .hop-item b { color: var(--primary); }
+.chains-list .chain { border-top: 1px solid var(--line-soft); padding: 9px 0; }
+.chains-list .chain:first-child { border-top: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
 
 @media (max-width: 760px) {
   .numbers { grid-template-columns: repeat(2, 1fr); }
