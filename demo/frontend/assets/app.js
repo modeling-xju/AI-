@@ -573,17 +573,27 @@ function methodItem(m) {
     <span class="muted">第 ${m.line} 行 · ${m.loc} 行</span>${facts}<span class="calls">${calls}</span></li>`;
 }
 
+const ACCESSOR_RE = /^(get|set|is)[A-Z0-9_]/;
+
+function accessorLine(list) {
+  if (!list.length) return '';
+  const names = list.slice(0, 8).map((m) => esc(m.name)).join(' / ');
+  const more = list.length > 8 ? ' …' : '';
+  return `<li class="accessors"><span class="muted">访问器 ${list.length} 个 · ${names}${more}</span></li>`;
+}
+
 function classBlock(c) {
-  // lambda 是编译器生成的，展示时略过
-  const methods = (c.methods || []).filter((m) => !/^<lambda/.test(m.name || ''))
-    .map(methodItem).join('');
+  // lambda 是编译器生成的，展示时略过；getter/setter 收成一行，别把业务方法冲散
+  const all = (c.methods || []).filter((m) => !/^<lambda/.test(m.name || ''));
+  const accessors = all.filter((m) => ACCESSOR_RE.test(m.name || ''));
+  const methods = all.filter((m) => !ACCESSOR_RE.test(m.name || '')).map(methodItem).join('');
   const fields = (c.fields || []).map((f) => `<span class="chip field"><b>${esc(f.name)}</b>${
     f.type_name ? `: ${esc(f.type_name)}` : ''}</span>`).join('');
   return `<details class="cls"><summary><b>${esc(c.name)}</b>
     <span class="badge">${esc(c.layer)}</span><span class="muted">${esc(c.kind)} · 第 ${c.line} 行</span>
     ${c.fields && c.fields.length ? `<span class="muted">· ${c.fields.length} 字段</span>` : ''}</summary>
     ${fields ? `<p class="fields">${fields}</p>` : ''}
-    <ul class="methods">${methods || '<li class="muted">无可解析方法</li>'}</ul></details>`;
+    <ul class="methods">${methods}${accessorLine(accessors)}${methods || accessors.length ? '' : '<li class="muted">无可解析方法</li>'}</ul></details>`;
 }
 
 function structureHtml(data, query, expand) {
@@ -636,6 +646,7 @@ async function renderStructure() {
         : '')
     : '';
   draw(`
+    ${chainStrip('structure')}
     <section class="head"><div><h1>代码结构</h1>
       <p class="muted">源码解析结果：${data.classes_total} 个类、${data.methods_total} 个方法、${data.calls_total} 个调用点。
       按目录分组，点开目录 → 文件 → 类 → 方法逐层钻取。</p>
@@ -662,6 +673,8 @@ async function renderStructure() {
         STRUCT.query = path;
         renderStructure();
       },
+      // 链路的下一站：这个文件里的类会波及谁
+      onImpact: (cls) => { location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(cls)}`; },
     }));
     return;
   }
@@ -738,6 +751,27 @@ function bindViewToggle(key, rerender) {
   });
 }
 
+/**
+ * 结构 → 功能 → 架构 → 影响 是一条链路：同一条路径上前后可来回跳，
+ * 跳的时候把 pid 带上，工程不丢。
+ */
+const CHAIN = [
+  ['structure', '结构'],
+  ['functions', '功能'],
+  ['architecture', '架构'],
+  ['impact', '影响'],
+];
+
+function chainStrip(active, extra = '') {
+  const pid = state.pid ? `pid=${state.pid}` : '';
+  const steps = CHAIN.map(([key, label], i) => {
+    const on = key === active ? ' on' : '';
+    const href = `#/${key}${pid ? `?${pid}` : ''}${key === active ? extra : ''}`;
+    return `<a class="step${on}" href="${href}"><span class="mono">0${i + 1}</span>${label}</a>`;
+  }).join('<i>→</i>');
+  return `<nav class="chain" aria-label="分析链路">${steps}</nav>`;
+}
+
 /* ------------------------------------------------------------------ 视图：功能 */
 /**
  * 功能条目：说明里通常已含「入口 Class.method」，重复的证据不再单独占一行，
@@ -779,6 +813,7 @@ function functionPanel(root, needle) {
 async function renderFunctions() {
   const data = await api(`/api/projects/${state.pid}/functions`);
   draw(`
+    ${chainStrip('functions')}
     <section class="head"><div><h1>功能需求恢复</h1>
       <p class="muted">一级为模块功能，二级为可核对到方法的原子功能；每条都标了实现位置。</p></div>
       <div class="row">${viewToggle('functions')}<span class="badge ok">${data.leaf_count} 条</span></div></section>
@@ -803,6 +838,14 @@ async function renderFunctions() {
       onSearch: (text) => {
         state.search = { q: text, mode: 'fusion' };
         location.hash = '#/search';
+      },
+      // 链路的下一站：这条功能由哪个类实现，改它会影响什么
+      onImpact: (evidence) => {
+        const entry = String(evidence || '').split(/[（(\s]/)[0].trim();
+        const [cls, method] = entry.split('.');
+        if (!cls) return;
+        location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(cls)}`
+          + (method ? `&m=${encodeURIComponent(method)}` : '');
       },
     }));
     return;
@@ -893,6 +936,7 @@ async function renderArchitecture() {
       <td class="classes">${group.functions.map((f) => `<span class="chip">${esc(f.name)}</span>`).join('')}</td></tr>`).join('');
 
   draw(`
+    ${chainStrip('architecture')}
     <section class="head"><div><h1>系统架构视图</h1>
       <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div>
       ${viewToggle('architecture')}</section>
@@ -921,6 +965,7 @@ async function renderArchitecture() {
   if (VIEW.architecture === 'map') {
     document.getElementById('arch-map').appendChild(window.viz.archGraph(data, {
       onFocus: (name) => { location.hash = `#/structure?focus=${encodeURIComponent(String(name).split('(')[0].trim())}`; },
+      onImpact: (name) => { location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(String(name).split('(')[0].trim())}`; },
     }));
   }
 
@@ -1139,6 +1184,18 @@ async function renderImpact() {
     methodsOf.set(c.id, (c.methods || []).map((m) => m.name || '')
       .filter((n) => n && !n.startsWith('<')).sort((a, b) => a.localeCompare(b)));
   }));
+  // 链路带过来的上下文：#/impact?pid=3&cls=Order&m=setStatus
+  const { query } = currentRoute();
+  const wantCls = query.get('cls');
+  if (wantCls) {
+    const hit = classes.find((c) => c.name === wantCls)
+      || classes.find((c) => `${c.module}/${c.name}` === wantCls)
+      || classes.find((c) => c.name.toLowerCase() === wantCls.toLowerCase());
+    if (hit) {
+      state.impactClass = hit.id;
+      state.impactMethod = query.get('m') || '';
+    }
+  }
   if (!state.impactClass && classes.length) {
     state.impactClass = data.project.impact_hot || classes[0].id;
   }
@@ -1195,6 +1252,7 @@ async function renderImpact() {
     impactData = r;
   }
   draw(`
+    ${chainStrip('impact')}
     <section class="head"><div><h1>变更影响分析</h1>
       <p class="muted">沿调用图反向查找：改这个类，哪些类、模块与功能要一起验证。</p></div>
       ${viewToggle('impact')}</section>

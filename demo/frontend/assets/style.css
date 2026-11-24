@@ -870,9 +870,9 @@ details.hl > summary { border-radius: 3px; }
 
 /* 嵌套矩形树（SVG）：面积按类数/条目数，一次看三层 */
 .map-shell .tm-svg { width: 100%; height: auto; display: block; }
-.tm-rect > rect { stroke: var(--bv-line2); stroke-width: 1; fill: #20272a; }
-.tm-rect.d2 > rect { fill: color-mix(in srgb, var(--tint, #7bc9a8) 18%, #20272a); }
-.tm-rect.d3 > rect { fill: #2a3234; stroke: #3c4744; }
+.tm-rect > rect { stroke: var(--bv-line2); stroke-width: 1; fill: var(--bv-card); }
+.tm-rect.d2 > rect { fill: color-mix(in srgb, var(--tint, #7bc9a8) 18%, var(--bv-card)); }
+.tm-rect.d3 > rect { fill: color-mix(in srgb, var(--bv-line) 55%, var(--bv-card)); stroke: var(--bv-line2); }
 .tm-rect.has-kids { cursor: pointer; }
 .tm-rect:hover > rect { stroke: var(--bv-accent); filter: drop-shadow(0 0 4px rgba(158, 233, 202, .35)); }
 .tm-name { fill: var(--bv-text); font: 600 12px/1 var(--mono); letter-spacing: .01em; }
@@ -885,7 +885,7 @@ details.hl > summary { border-radius: 3px; }
   background: var(--bv-line); border: 1px solid var(--bv-line); border-radius: 6px; overflow: hidden; }
 .arch-matrix > div { background: var(--bv-card); padding: 10px 12px; min-height: 62px; }
 .am-corner, .am-head { display: flex; align-items: center; font: 500 10px/1.4 var(--mono);
-  letter-spacing: .12em; text-transform: uppercase; color: var(--bv-muted); background: #1b2021 !important; }
+  letter-spacing: .12em; text-transform: uppercase; color: var(--bv-muted); background: var(--bv-panel) !important; }
 .am-head { color: var(--bv-accent); }
 .am-mod { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
 .am-mod b { font-size: 12px; color: var(--bv-text); }
@@ -895,7 +895,7 @@ details.hl > summary { border-radius: 3px; }
 .am-cell b { font-size: 12.5px; color: var(--bv-text); }
 .am-cell small { font: 400 10px/1 var(--mono); color: var(--bv-muted); }
 .am-cell em { font: 400 9.5px/1 var(--mono); font-style: normal; color: var(--bv-accent); }
-.am-cell.empty { cursor: default; background: #191e1f; box-shadow: none; min-width: 0; width: 100%; justify-self: stretch; }
+.am-cell.empty { cursor: default; background: color-mix(in srgb, var(--bv-line) 45%, var(--bv-bg)); box-shadow: none; min-width: 0; width: 100%; justify-self: stretch; }
 .am-cell.hot, .am-mod.hot { background: color-mix(in srgb, var(--tint, #7bc9a8) 14%, var(--bv-card)); }
 .am-cell:hover { outline: 1px solid var(--bv-accent); outline-offset: -1px; }
 
@@ -912,3 +912,40 @@ details.hl > summary { border-radius: 3px; }
 .map-shell .impact-svg .inode .iname { fill: var(--bv-text); font: 600 11.5px/1 var(--mono); }
 .map-shell .impact-svg .inode .imeta { fill: var(--bv-muted); font: 400 9.5px/1 var(--mono); }
 .map-shell .impact-svg .edge { stroke: var(--bv-line2); stroke-width: 1.2; fill: none; opacity: .75; }
+
+/* 浅色主题（跟随页面主题）：birdview light 配色 */
+:root[data-theme="light"] .map-shell {
+  --bv-bg: #fafbfa;
+  --bv-panel: #ffffff;
+  --bv-card: #ffffff;
+  --bv-line: #d8dfdb;
+  --bv-line2: #a0afa6;
+  --bv-text: #1d2422;
+  --bv-code: #2c3a35;
+  --bv-muted: #6b7a74;
+  --bv-accent: #167552;
+  --bv-dot: #00000010;
+}
+:root[data-theme="light"] .map-shell > :first-child { background-color: #f6f8f7; }
+:root[data-theme="light"] .map-shell .insp { box-shadow: inset 0 0 0 1px var(--bv-line); }
+:root[data-theme="light"] .tm-rect > rect { fill: #ffffff; }
+:root[data-theme="light"] .tm-rect.d2 > rect { fill: color-mix(in srgb, var(--tint, #7bc9a8) 16%, #ffffff); }
+:root[data-theme="light"] .tm-rect.d3 > rect { fill: #f1f4f3; stroke: #c9d3ce; }
+:root[data-theme="light"] .am-corner, :root[data-theme="light"] .am-head { background: #f1f4f3 !important; }
+:root[data-theme="light"] .am-cell.empty { background: #f3f6f4; }
+/* ------------------------------------------------- 分析链路（结构→功能→架构→影响） */
+.chain { display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+  margin: 0 0 10px; font-size: 12px; }
+.chain .step { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px;
+  border-radius: 4px; color: var(--ink-2, #3f474d); text-decoration: none; border: 1px solid transparent; }
+.chain .step:not(.on) { opacity: .86; }
+.chain .step .mono { font-size: 10px; letter-spacing: .08em; opacity: .8; }
+.chain .step:hover { color: var(--ink); background: var(--soft); }
+.chain .step.on { color: var(--ink); background: var(--soft); border-color: var(--line);
+  font-weight: 600; }
+.chain .step.on .mono { color: var(--primary); opacity: 1; }
+.chain i { font-style: normal; color: var(--line-2, var(--line)); margin: 0 2px; }
+
+/* 访问器（getter/setter）在方法列表末尾收成一行 */
+.methods .accessors { list-style: none; padding: 6px 0 2px; border-top: 1px dashed var(--line-soft); }
+.methods .accessors span { font-size: 12px; }

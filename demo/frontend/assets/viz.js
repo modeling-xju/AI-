@@ -39,6 +39,10 @@
 
   const chip = (text, extra = '') => `<span class="chip ${extra}">${esc(text)}</span>`;
 
+  // 领域类里成片的 getter/setter 会把方法列表冲散，检查器里单独收成一行
+  const ACCESSOR_RE = /^(get|set|is)[A-Z0-9_]/;
+  const isAccessor = (m) => ACCESSOR_RE.test(String((m && m.name) || ''));
+
   /* -------------------------------------------------------------- 通用目录树图 */
   // 一次画三层（模块 → 包 → 文件）的嵌套矩形树，面积按「类数/条目数」分配；
   // 点非叶子矩形下钻（面包屑回退），点叶子看检查器。
@@ -262,18 +266,31 @@
           ['规模', `${(file.classes || []).length} 类 · ${(file.classes || [])
             .reduce((n, c) => n + (c.methods || []).length, 0)} 方法`],
         ])}
-        ${(file.classes || []).map((cls) => `
+        ${(file.classes || []).map((cls) => {
+          const methods = cls.methods || [];
+          const accessors = methods.filter(isAccessor);
+          const rest = methods.filter((m) => !isAccessor(m));
+          const acc = accessors.length
+            ? `<p class="small mono muted">访问器 ${accessors.length} 个 · ${accessors.slice(0, 6)
+              .map((m) => m.name).join(' / ')}${accessors.length > 6 ? ' …' : ''}</p>` : '';
+          return `
           <div class="insp-block">
             <p><b>${esc(cls.name)}</b> <span class="badge">${esc(cls.layer || '')}</span></p>
-            ${(cls.methods || []).slice(0, 8).map((m) => `<p class="small mono">${esc(m.signature || m.name)}</p>`).join('')}
-          </div>`).join('')}
+            ${rest.slice(0, 8).map((m) => `<p class="small mono">${esc(m.signature || m.name)}</p>`).join('')}
+            ${acc}
+          </div>`;
+        }).join('')}
         <div class="insp-actions">
           <button class="ghost" data-act="focus" data-path="${esc(file.path)}">在列表里定位</button>
+          ${(file.classes && file.classes[0])
+            ? `<button class="ghost" data-act="impact" data-cls="${esc(file.classes[0].name)}">看变更影响</button>` : ''}
           <a class="btn ghost" href="/api/projects/${state.pid}/files/${file.id}/download"
              download>下载该文件</a>
         </div>`;
       const button = inspector.querySelector('[data-act="focus"]');
       if (button) button.onclick = () => hooks.onFocusFile(file.path);
+      const impactBtn = inspector.querySelector('[data-act="impact"]');
+      if (impactBtn) impactBtn.onclick = () => hooks.onImpact(impactBtn.dataset.cls);
     });
     inspector.innerHTML = emptyInsp('面积代表类数。点大块下钻到包，点文件块看类、方法、字段与源码位置。');
     const wrap = document.createElement('div');
@@ -315,9 +332,12 @@
         <div class="insp-actions">
           <button class="ghost" data-act="open">在代码结构里定位</button>
           <button class="ghost" data-act="search">按证据检索</button>
+          <button class="ghost" data-act="impact">看变更影响</button>
         </div>`;
       inspector.querySelector('[data-act="open"]').onclick = () => hooks.onFocus(leaf.evidence);
       inspector.querySelector('[data-act="search"]').onclick = () => hooks.onSearch(leaf.evidence || leaf.name);
+      const impactBtn = inspector.querySelector('[data-act="impact"]');
+      if (impactBtn) impactBtn.onclick = () => hooks.onImpact(leaf.evidence || leaf.name);
     });
     inspector.innerHTML = emptyInsp('面积代表功能条目数。点模块块看条目，点条目块看证据方法。');
     const wrap = document.createElement('div');
@@ -421,9 +441,12 @@
           <p class="chips">${[...new Set(functions)].slice(0, 12).map((name) => chip(name, 'soft')).join('')}</p>` : ''}
         <div class="insp-actions">
           <button class="ghost" data-act="open">在代码结构里看这些类</button>
+          <button class="ghost" data-act="impact">看变更影响</button>
         </div>`;
       const button = inspector.querySelector('[data-act="open"]');
       if (button) button.onclick = () => hooks.onFocus(component.classes[0] || component.name);
+      const impactBtn = inspector.querySelector('[data-act="impact"]');
+      if (impactBtn) impactBtn.onclick = () => hooks.onImpact(component.classes[0] || component.name);
     });
 
     wrap.appendChild(inspector);
