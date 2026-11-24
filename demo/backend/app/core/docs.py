@@ -107,9 +107,13 @@ def manual_doc(pid):
                              (pid, module["id"]))
         lines.append("")
         for function in functions:
-            lines.append("- **%s**：%s（%s）" % (function["name"],
-                                               function["summary"] or "—",
-                                               function["evidence"] or ""))
+            summary = function["summary"] or "—"
+            evidence = (function["evidence"] or "").strip()
+            # 摘要里通常已经写了「入口 Class.method」，重复的证据不再加括号
+            if evidence and evidence not in summary:
+                lines.append("- **%s**：%s（%s）" % (function["name"], summary, evidence))
+            else:
+                lines.append("- **%s**：%s" % (function["name"], summary))
         lines.append("")
     lines += ["## 三、局限", "",
               "结构事实来自源码解析，动态分派与反射调用的目标可能缺失；"

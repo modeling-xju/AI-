@@ -424,13 +424,17 @@ def _class_full_name(method_full_name):
 
 
 def _method_docs(scan):
-    """从源码里补出 javadoc 与行数：Joern 只给结构，注释得自己读文件。"""
+    """从源码里补出 javadoc、行数与结构摘要：Joern 只给结构，方法体得自己读文件。"""
     docs = {}
     for entry in scan["java_files"]:
         tree = javaparse.parse_source(entry["content"])
+        package = tree.get("package") or ""
         for cls in tree["classes"]:
             for method in cls["methods"]:
-                docs[(cls["name"], method["name"])] = (method["doc"], method["loc"])
+                docs[(package, cls["name"], method["name"])] = (
+                    method["doc"], method["loc"],
+                    method.get("branches", 0), method.get("loops", 0), method.get("catches", 0),
+                )
     return docs
 
 
@@ -479,9 +483,11 @@ def _store_joern(pid, data, docs=None):
         signature = method["signature"] or ""
         return_type = signature.split("(", 1)[0] if "(" in signature else ""
         params = signature.split("(", 1)[1].rstrip(")") if "(" in signature else ""
-        doc, loc = docs.get((full_names.get(class_full, ""), method["name"]), ("", 0))
+        package = class_full.rsplit(".", 1)[0] if "." in class_full else ""
+        doc, loc, branches, loops, catches = docs.get(
+            (package, full_names.get(class_full, ""), method["name"]), ("", 0, 0, 0, 0))
         method_rows.append((pid, owner, method["name"], signature, return_type, params,
-                            method["line"], loc, doc, 1, 0, 0, 0))
+                            method["line"], loc, doc, 1, branches, loops, catches))
     db.execute_many("INSERT INTO methods(project_id, class_id, name, signature, return_type, "
                     "params, line, loc, doc, is_public, branches, loops, catches) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", method_rows)
