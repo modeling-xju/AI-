@@ -251,19 +251,22 @@ async function renderOverview() {
   const restMetrics = data.metrics.filter((m) => !HEADLINE.includes(m.key));
   const strip = restMetrics.map((m) =>
     `<span>${esc(m.label)} <b>${metricValue(m)}</b></span>`).join('');
-  const classChips = (list) => {
-    const shown = list.slice(0, 8);
+  const classChips = (list, limit = 6) => {
+    const shown = list.slice(0, limit);
     const rest = list.length - shown.length;
     return shown.map((c) => `<span class="chip">${esc(c.name)}</span>`).join('') +
       (rest > 0 ? `<span class="chip more" data-more="${list.slice(shown.length).map((c) => esc(c.name)).join('|')}">+${rest}</span>` : '');
   };
-  const rows = data.modules.map((m) => `
-    <tr>
-      <td><a href="#/functions">${esc(m.name)}</a></td>
-      <td class="nowrap">${m.size} 类 / ${m.method_count} 方法</td>
-      <td>${fmt(m.cohesion, 3)}</td>
-      <td class="classes">${classChips(m.classes)}</td>
-    </tr>`).join('');
+  // 模块卡片：参考页的产品区是卡片网格，比 12 行长表格更好扫
+  const cards = data.modules.map((m) => `
+    <article class="mod-card">
+      <div class="mod-head">
+        <a href="#/functions" title="${esc(m.name)}">${esc(m.name)}</a>
+        <span class="chip soft">${m.size} 类 · ${m.method_count} 方法</span>
+      </div>
+      <p class="mod-meta">内聚度 ${Number(m.cohesion || 0).toFixed(3)}</p>
+      <div class="classes">${classChips(m.classes)}</div>
+    </article>`).join('');
   const body = `
     <section class="hero">
       <div class="hero-left">
@@ -283,8 +286,7 @@ async function renderOverview() {
     <div class="numbers">${bigNums}</div>
     <p class="metrics-strip">${strip}</p>
     <h2>模块划分</h2>
-    <table class="modules"><thead><tr><th>模块</th><th>规模</th><th>内聚度</th><th>包含的类</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4" class="muted">还没有分析结果</td></tr>'}</tbody></table>
+    <div class="module-grid">${cards || '<p class="muted">还没有分析结果</p>'}</div>
     <div class="two">
       <div><h2>产物</h2>
         <p>已恢复功能条目 <b>${data.function_count}</b> 条；已生成文档 <b>${data.document_count}</b> 份。</p>
@@ -300,8 +302,8 @@ async function renderOverview() {
     </div>`;
   draw(body);
 
-  // 类 chip 折叠：点 +N 就地展开，避免 60 多个类把表格行撑高
-  document.querySelectorAll('table.modules .chip.more').forEach((el) => {
+  // 类 chip 折叠：点 +N 就地展开，避免 60 多个类把卡片撑高
+  document.querySelectorAll('.module-grid .chip.more').forEach((el) => {
     el.onclick = () => {
       const names = (el.dataset.more || '').split('|').filter(Boolean);
       el.insertAdjacentHTML('beforebegin', names.map((n) => `<span class="chip">${esc(n)}</span>`).join(''));
