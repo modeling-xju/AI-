@@ -179,6 +179,32 @@ button.ghost:hover { border-color: var(--primary); color: var(--primary); }
 .progress.failed .bar { background: #e62c2c; }
 
 /* ---------------------------------------------------------------- 指标卡 */
+/* 首屏大数字带：四个规模指标，其余降级为等宽小字 */
+.numbers {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  margin: 4px 0 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.numbers div { padding: 24px 24px 22px; border-left: 1px solid var(--line-soft); }
+.numbers div:first-child { border-left: none; padding-left: 0; }
+.numbers b { display: block; font-size: 44px; line-height: 1.06; letter-spacing: -.045em;
+  font-weight: 660; font-variant-numeric: tabular-nums; }
+.numbers span { display: block; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.numbers em { display: block; margin-top: 4px; font-size: 11.5px; color: var(--faint); font-style: normal; }
+
+.metrics-strip { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 14px 0 0;
+  font: 500 11.5px/1.7 var(--mono); color: var(--faint); letter-spacing: .01em; }
+.metrics-strip span { white-space: nowrap; }
+.metrics-strip b { color: var(--ink-2); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .numbers { grid-template-columns: repeat(2, 1fr); }
+  .numbers div { padding: 18px 16px; }
+  .numbers div:nth-child(odd) { border-left: none; padding-left: 0; }
+  .numbers b { font-size: 34px; }
+  .metrics-strip { gap: 4px 14px; }
+}
+
+/* 统计卡（其它页面仍在用） */
 .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 18px 0 4px;
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); overflow: hidden; }
 .stat { padding: 16px 18px; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }

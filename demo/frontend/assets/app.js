@@ -240,9 +240,17 @@ function projectMeta(p) {
 async function renderOverview() {
   const data = await api(`/api/projects/${state.pid}/overview`);
   const p = data.project;
-  const metrics = data.metrics.map((m) => `
-    <div class="stat"><b>${metricValue(m)}</b>
-      <span>${esc(m.label)}</span><em>${esc(m.note || '')}</em></div>`).join('');
+  // 首屏只留四个能一眼说清规模的大数；其余指标降级成一行等宽小字
+  const HEADLINE = ['classes', 'methods', 'modules'];
+  const bigNums = [
+    { v: p.class_count, label: '类 / 接口', note: '源码中的 class / interface 声明' },
+    { v: p.method_count, label: '方法', note: '含私有方法与访问器' },
+    { v: data.modules.length, label: '功能模块', note: 'Louvain 在调用图上的划分' },
+    { v: data.function_count, label: '功能条目', note: '可核对到方法的原子功能' },
+  ].map((x) => `<div><b>${fmt(x.v, 0)}</b><span>${esc(x.label)}</span><em>${esc(x.note)}</em></div>`).join('');
+  const restMetrics = data.metrics.filter((m) => !HEADLINE.includes(m.key));
+  const strip = restMetrics.map((m) =>
+    `<span>${esc(m.label)} <b>${metricValue(m)}</b></span>`).join('');
   const classChips = (list) => {
     const shown = list.slice(0, 8);
     const rest = list.length - shown.length;
@@ -272,7 +280,8 @@ async function renderOverview() {
         <div><span>RECOVERY</span><i></i><b>${data.function_count} leaves</b></div>
       </div>
     </section>
-    <div class="stats">${metrics}</div>
+    <div class="numbers">${bigNums}</div>
+    <p class="metrics-strip">${strip}</p>
     <h2>模块划分</h2>
     <table class="modules"><thead><tr><th>模块</th><th>规模</th><th>内聚度</th><th>包含的类</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="4" class="muted">还没有分析结果</td></tr>'}</tbody></table>
