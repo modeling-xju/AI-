@@ -37,6 +37,14 @@ def create_app():
         app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")),
                   name="assets")
 
+        @app.middleware("http")
+        async def no_cache_frontend(request: Request, call_next):
+            """前端还在改，静态资源别让浏览器吃缓存；改完刷新即可生效。"""
+            response = await call_next(request)
+            if request.url.path.startswith("/assets/") or request.url.path == "/":
+                response.headers["Cache-Control"] = "no-store, must-revalidate"
+            return response
+
         @app.get("/")
         def index():
             return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))

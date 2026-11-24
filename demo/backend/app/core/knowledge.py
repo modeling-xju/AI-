@@ -113,6 +113,69 @@ def _class_noun(class_name):
     return ""
 
 
+# 只在「同一层里不同类撞了同一个功能名」时用，把类名的限定词翻出来当前缀，
+# 例如 CaptchaTokenGranter / PasswordTokenGranter 都叫「处理授权」时，
+# 分别变成「验证码授权」「密码授权」。
+MODIFIERS = {
+    "captcha": "验证码", "password": "密码", "refresh": "刷新", "social": "社交",
+    "sms": "短信", "email": "邮件", "mobile": "手机", "phone": "手机",
+    "wechat": "微信", "weixin": "微信", "qq": "QQ", "weibo": "微博",
+    "github": "GitHub", "gitee": "Gitee", "dingtalk": "钉钉", "ding": "钉钉",
+    "jwt": "JWT", "oauth": "OAuth", "sso": "单点登录", "ldap": "LDAP",
+    "sign": "签名", "encrypt": "加密", "decrypt": "解密", "secure": "安全",
+    "lock": "锁定", "unlock": "解锁", "reset": "重置", "verify": "校验",
+    "check": "校验", "valid": "校验", "limit": "限流", "flow": "流控",
+    "gateway": "网关", "proxy": "代理", "remote": "远程", "feign": "远程",
+    "admin": "管理端", "app": "移动端", "web": "网页端", "open": "开放",
+    "tenant": "租户", "organization": "组织", "company": "公司", "dept": "部门",
+    "role": "角色", "menu": "菜单", "dict": "字典", "param": "参数",
+    "region": "区域", "post": "岗位", "notice": "通知", "log": "日志",
+    "scope": "权限", "token": "令牌", "user": "用户", "client": "客户端",
+    "order": "订单", "product": "商品", "cart": "购物车", "stock": "库存",
+    "file": "文件", "oss": "对象存储", "minio": "对象存储", "qiniu": "对象存储",
+    "cache": "缓存", "redis": "缓存", "id": "编号", "code": "编号",
+    "error": "错误", "api": "接口", "usual": "常规", "common": "通用",
+    "inner": "内部", "demo": "示例", "desk": "工作台", "develop": "开发",
+    "system": "系统", "seata": "分布式事务", "blade": "平台",
+    "data": "数据", "fallback": "降级", "sso": "单点登录",
+}
+
+
+def class_terms(class_name, limit=2):
+    """类名里的限定词（中文化），用于区分同层同名的功能。"""
+    words = split_words(class_name)
+    popped = []
+    while len(words) > 1 and words[-1].lower() in CLASS_SUFFIXES:
+        word = words.pop()
+        # 被剥掉的后缀里也有带含义的（ApiController 的 api），留着当限定词
+        if word in MODIFIERS:
+            popped.insert(0, word)
+    terms = []
+    for word in words + popped:
+        term = MODIFIERS.get(word)
+        if term and term not in terms:
+            terms.append(term)
+    return terms[-limit:]
+
+
+def distinct_name(base, class_name):
+    """把「处理授权」+ CaptchaTokenGranter 变成「验证码令牌授权」这类的具体名字。"""
+    terms = class_terms(class_name)
+    if not terms or not base:
+        return ""
+    verb = ""
+    rest = base
+    for candidate in sorted(set(VERBS.values()), key=len, reverse=True):
+        if rest.startswith(candidate):
+            verb, rest = candidate, rest[len(candidate):]
+            break
+    # 限定词与动作宾语重复时不重复拼接（LogApiController + 列出日志 → 列出接口日志）
+    terms = [term for term in terms if term not in rest and term not in verb]
+    if not terms:
+        return ""
+    return (verb + "".join(terms) + rest)[:16]
+
+
 def guess_function_name(method_name, class_name=""):
     """updateStatus + OrderDao -> 更新订单状态。"""
     if method_name in SPECIAL:

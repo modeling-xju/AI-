@@ -85,6 +85,13 @@ function currentRoute() {
 async function loadProjects() {
   const data = await api('/api/projects');
   state.projects = data.projects || [];
+  // 分享链接里可以带 pid：`/?pid=3#/overview` 或 `#/overview?pid=3` 都认
+  const hashQuery = location.hash.includes('?') ? location.hash.split('?')[1] : '';
+  const wanted = Number(new URLSearchParams(location.search).get('pid')
+    || new URLSearchParams(hashQuery).get('pid') || 0);
+  if (wanted && state.projects.some((p) => p.id === wanted)) {
+    state.pid = wanted;
+  }
   if (!state.projects.some((p) => p.id === state.pid)) {
     state.pid = state.projects.length ? state.projects[0].id : 0;
   }
@@ -96,7 +103,7 @@ function shell(body) {
     <div class="project-bar">
       <label>当前工程
         <select id="pid-select">${state.projects.map((p) =>
-          `<option value="${p.id}" ${p.id === state.pid ? 'selected' : ''}>${esc(p.name)}（${STATUS_LABEL[p.status] || p.status}）</option>`
+          `<option value="${p.id}" ${Number(p.id) === Number(state.pid) ? 'selected' : ''}>${esc(p.name)}（${STATUS_LABEL[p.status] || p.status}）</option>`
         ).join('')}</select>
       </label>
       <button class="ghost" id="btn-new">接入新工程</button>

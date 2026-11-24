@@ -422,6 +422,14 @@ def _store_functions(pid):
     for group in by_label.values():
         classes = {entry["entry"].split(".")[0] for entry in group}
         layers = {entry.get("layer") or "" for entry in group}
+        # 同一个类（同名同类名、不同包）同名方法恢复出同一个功能：保留一条
+        seen = {}
+        for entry in sorted(group, key=lambda e: (e.get("package") or "", e["line"])):
+            key = entry["entry"]
+            if key in seen:
+                drop.add(id(entry))
+            else:
+                seen[key] = entry
         # 只有「跨层同名」才算同一件事的不同实现；同层的多个类（各类 TokenGranter）
         # 是并列能力，不能合并
         if len(group) > 1 and len(classes) > 1 and len(layers) > 1:
@@ -429,6 +437,29 @@ def _store_functions(pid):
             for entry in group:
                 if entry is not keep:
                     drop.add(id(entry))
+        elif len(group) > 1 and len(classes) > 1:
+            # 接口与实现类同名（IDictService / DictServiceImpl）也是同一件事，留接口那条
+            bases = {}
+            for entry in group:
+                cls = entry["entry"].split(".")[0]
+                key = cls[:-4] if cls.endswith("Impl") else cls
+                bases[id(entry)] = key
+            # IDictService 与 DictService、IDictClient 与 DictClient 视为同一件事
+            keys = set(bases.values())
+            for entry_id, key in list(bases.items()):
+                if re.fullmatch(r"I[A-Z]\w+", key) and key[1:] in keys:
+                    bases[entry_id] = key[1:]
+            buckets = {}
+            for entry in group:
+                buckets.setdefault(bases[id(entry)], []).append(entry)
+            for bucket in buckets.values():
+                if len(bucket) < 2:
+                    continue
+                keep = min(bucket, key=lambda e: (1 if e["entry"].split(".")[0].endswith("Impl") else 0,
+                                                  e["line"]))
+                for entry in bucket:
+                    if entry is not keep:
+                        drop.add(id(entry))
     if drop:
         # entries 与 rows 一一对应，删条目时必须同步删行，否则后面按索引写库会错位
         kept = [(entry, row) for entry, row in zip(entries, rows) if id(entry) not in drop]
@@ -464,6 +495,22 @@ def _store_functions(pid):
     for group in dup_groups():
         classes = {entry["entry"].split(".")[0] for entry in group}
         hints = {pkg_hint(entry.get("package")) for entry in group}
+        # 同一层里多个类撞了同一个功能名：优先用类名限定词改名（验证码授权 / 密码授权），
+        # 改不出差异再退回补类名，最后才用方法名。
+        proposed = {}
+        for entry in group:
+            cls = entry["entry"].split(".")[0]
+            proposed[id(entry)] = knowledge.distinct_name(origin[id(entry)], cls)
+        renamed = [value for value in proposed.values() if value]
+        if os.environ.get("PIPELINE_DEBUG"):
+            print("DBG", origin[id(group[0])], [origin[id(e)] for e in group],
+                  [proposed[id(e)] for e in group], "classes", len(classes))
+        if len(classes) > 1 and len(renamed) == len(group) and len(set(renamed)) == len(group):
+            if os.environ.get("PIPELINE_DEBUG"):
+                print("RENAME", [proposed[id(e)] for e in group])
+            for entry in group:
+                entry["label"] = proposed[id(entry)]
+            continue
         for entry in group:
             cls = entry["entry"].split(".")[0]
             # 同名类分布在不同的包里（SpringBlade 里 NoticeController 就有两份）：
@@ -479,6 +526,9 @@ def _store_functions(pid):
             entry["label"] = "%s（%s）" % (origin[id(entry)], entry["entry"])
 
     leaves = 0
+    if os.environ.get("PIPELINE_DEBUG"):
+        print("FINAL", [entry["label"] for entry in entries if "日志" in entry["label"]
+                        or "权限" in entry["label"]][:8])
     for module in modules:
         parent_id = db.execute(
             "INSERT INTO functions(project_id, module_id, parent_id, name, summary, "
@@ -807,6 +857,11 @@ def run(pid):
     db.set_status(pid, status="running", step="扫描源码", error="")
     try:
         _run(pid)
+        # 分析完就把检索索引建好，打开「评测对比」不用再等一次全量检索
+        try:
+            retrieve.build_index(pid)
+        except Exception:  # 索引失败不影响分析结论
+            traceback.print_exc()
         db.set_status(pid, status="analyzed", step="完成", error="")
     except Exception as error:  # 单次分析失败不应让服务挂掉
         db.set_status(pid, status="failed", error="%s: %s" % (type(error).__name__, error))
