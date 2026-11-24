@@ -9,11 +9,16 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+  // birdview 的配色：低饱和、深底上偏亮，右侧检查器用 mint 做强调
   const LAYER_COLOR = {
-    '接入层': '#0074c9', '业务层': '#2f8f6b', '数据层': '#8a5cd6',
-    '领域层': '#c07a1e', '公共层': '#6b7887', '其他': '#9aa7b2', '外部依赖': '#e0562f',
+    '接入层': '#5fa8d3', '业务层': '#7bc9a8', '数据层': '#b79ce6',
+    '领域层': '#e0b072', '公共层': '#9aa7a2', '其他': '#8a9a94', '外部依赖': '#e08a6a',
   };
-  const color = (layer) => LAYER_COLOR[layer] || '#6b7887';
+  const color = (layer) => LAYER_COLOR[layer] || '#8a9a94';
+
+  const legend = (layers) => `<div class="map-legend">${layers
+    .filter((l) => LAYER_COLOR[l])
+    .map((l) => `<span><i style="background:${color(l)}"></i>${esc(l)}</span>`).join('')}</div>`;
 
   const frame = (canvas, inspector, hint) => `
     <div class="map">
@@ -122,7 +127,7 @@
         label: module, meta: `${packages.size} 个包`,
         children: [...packages.entries()].map(([dir, files]) => ({
           label: dir.split('/').slice(-2).join('/') || dir,
-          meta: `${files.length} 个文件 · ${files.reduce((s, f) => s + (f.loc || 0), 0)} 行`,
+          meta: `${files.length} 个文件 · ${files.reduce((s, f) => s + (f.classes || []).length, 0)} 个类`,
           value: files.reduce((s, f) => s + (f.loc || 1), 0),
           children: files.map((file) => ({
             label: String(file.path || '').replace(/\\/g, '/').split('/').pop(),
@@ -232,7 +237,7 @@
     const positions = {};
     let maxRows = 0;
     layers.forEach((layer) => { maxRows = Math.max(maxRows, layer.components.length); });
-    const height = Math.max(420, maxRows * 74 + 60);
+    const height = Math.max(440, maxRows * 80 + 64);
     const parts = [];
     parts.push(`<svg viewBox="0 0 ${width} ${height}" class="arch-svg" role="img">`);
     parts.push(`<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
@@ -241,14 +246,14 @@
       const x = 16 + index * (colW + gap);
       parts.push(`<text x="${x}" y="24" class="layer-label">${esc(layer.name)}</text>`);
       layer.components.forEach((component, row) => {
-        const y = 40 + row * 74;
+        const y = 40 + row * 80;
         const id = 'c-' + component.id;
-        positions[component.id] = { x, y, w: colW, h: 58, name: component.name, layer: layer.name };
+        positions[component.id] = { x, y, w: colW, h: 64, name: component.name, layer: layer.name };
         parts.push(`<g class="node" data-id="${component.id}" tabindex="0">
-          <rect x="${x}" y="${y}" width="${colW}" height="58" rx="6" style="stroke:${color(layer.name)}"></rect>
-          <text x="${x + 10}" y="${y + 22}" class="node-title">${esc(component.name)}</text>
-          <text x="${x + 10}" y="${y + 40}" class="node-meta">${component.classes.length} 类 · ${esc(layer.name)}</text>
-          <circle cx="${x + colW - 14}" cy="${y + 14}" r="3" style="fill:${color(layer.name)}"></circle>
+          <rect x="${x}" y="${y}" width="${colW}" height="64" rx="6" style="stroke:${color(layer.name)}"></rect>
+          <text x="${x + 12}" y="${y + 25}" class="node-title">${esc(component.name)}</text>
+          <text x="${x + 12}" y="${y + 45}" class="node-meta">${component.classes.length} 类 · ${esc(layer.name)}</text>
+          <circle cx="${x + colW - 14}" cy="${y + 16}" r="3" style="fill:${color(layer.name)}"></circle>
         </g>`);
       });
     });
@@ -277,6 +282,9 @@
     const canvas = document.createElement('div');
     canvas.className = 'arch-canvas';
     canvas.innerHTML = parts.join('');
+    const wrap = document.createElement('div');
+    wrap.className = 'map-shell';
+    wrap.appendChild(canvas);
 
     const inspector = document.createElement('div');
     inspector.className = 'insp';
@@ -311,9 +319,11 @@
       const button = inspector.querySelector('[data-act="open"]');
       if (button) button.onclick = () => hooks.onFocus(component.classes[0] || component.name);
     });
-    const wrap = document.createElement('div');
-    wrap.className = 'map-shell';
-    wrap.appendChild(canvas);
+    const pane = document.createElement('div');
+    pane.className = 'map-pane';
+    pane.appendChild(canvas);
+    pane.insertAdjacentHTML('beforeend', legend(['接入层', '业务层', '数据层', '领域层', '公共层']));
+    wrap.appendChild(pane);
     wrap.appendChild(inspector);
     return wrap;
   }
@@ -395,6 +405,13 @@
     const wrap = document.createElement('div');
     wrap.className = 'map-shell';
     wrap.appendChild(canvas);
+    const usedLayers = [...new Set(nodes.map((n) => n.layer).filter(Boolean))];
+    const pane = document.createElement('div');
+    pane.className = 'map-pane';
+    pane.appendChild(canvas);
+    pane.insertAdjacentHTML('beforeend', legend(usedLayers.length
+      ? usedLayers : ['接入层', '业务层', '数据层', '领域层', '公共层']));
+    wrap.appendChild(pane);
     wrap.appendChild(inspector);
     return wrap;
   }

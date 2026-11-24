@@ -749,3 +749,121 @@ details.hl > summary { border-radius: 3px; }
 /* 架构图要保持可读：窄屏时横向滚动而不是整体缩小 */
 .arch-canvas { overflow-x: auto; }
 .arch-canvas svg { min-width: 1020px; }
+/* ------------------------------------------------- 图形视图：birdview 视觉语言
+   参考 https://github.com/Qiuner/birdview：深色画布 + 点阵、卡片式节点、mint 高亮、
+   右侧检查器与画布同底、字段用小号等宽大写标签。浅色主题换成 birdview 的 light 配色。 */
+.map-shell {
+  --bv-bg: #141617;
+  --bv-panel: #1a1e1f;
+  --bv-card: #242a2b;
+  --bv-line: #303638;
+  --bv-line2: #5b6864;
+  --bv-text: #d8e0dc;
+  --bv-code: #c5d6cd;
+  --bv-muted: #9aaba6;
+  --bv-accent: #9ee9ca;
+  --bv-dot: #ffffff10;
+  display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: 0;
+  border: 1px solid var(--bv-line); border-radius: 10px; overflow: hidden;
+  background: var(--bv-bg); margin-top: 14px;
+}
+
+@media (max-width: 980px) { .map-shell { grid-template-columns: 1fr; } }
+
+.map-pane { min-width: 0; }
+.map-shell > :first-child {
+  min-width: 0; padding: 18px 18px 16px;
+  background-image: radial-gradient(var(--bv-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.map-shell .insp {
+  border: 0; border-left: 1px solid var(--bv-line); border-radius: 0;
+  background: var(--bv-panel); color: var(--bv-text);
+  padding: 18px 18px 22px; position: sticky; top: 78px; max-height: calc(100vh - 110px);
+  overflow: auto;
+}
+@media (max-width: 980px) { .map-shell .insp { border-left: 0; border-top: 1px solid var(--bv-line);
+  position: static; max-height: none; } }
+.map-shell .insp .eyebrow { color: var(--bv-accent); letter-spacing: .18em; }
+.map-shell .insp .eyebrow i { background: var(--bv-accent); }
+.map-shell .insp h4 { font-size: 15px; color: var(--bv-text); }
+.map-shell .insp .muted, .map-shell .insp p.muted { color: var(--bv-muted); }
+.map-shell .insp .kv dt {
+  width: auto; color: var(--bv-muted); font-size: 10.5px; line-height: 1.9;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.map-shell .insp .kv dd {
+  margin: 0; min-width: 0; line-height: 1.8; overflow-wrap: anywhere; word-break: break-word;
+  font-family: var(--mono); font-size: 11.5px; color: var(--bv-code);
+}
+.map-shell .insp .rail-label { color: var(--bv-muted); font-size: 10.5px; letter-spacing: .08em; }
+.map-shell .insp .chip, .map-shell .insp .badge {
+  background: transparent; border-color: var(--bv-line2); color: var(--bv-text);
+}
+.map-shell .insp code { color: var(--bv-code); background: color-mix(in srgb, var(--bv-line) 55%, transparent); }
+.map-shell .insp-actions .btn, .map-shell .insp-actions button {
+  background: transparent; border: 1px solid var(--bv-line2); color: var(--bv-text);
+  border-radius: 4px;
+}
+.map-shell .insp-actions .btn:hover, .map-shell .insp-actions button:hover {
+  border-color: var(--bv-accent); color: var(--bv-accent);
+}
+.map-shell .insp-block { border-top: 1px dashed var(--bv-line); }
+
+/* 目录树 / 功能树卡片 */
+.map-shell .tm { border: 0; background: transparent; overflow: visible; }
+.map-shell .crumbs { border-bottom: 1px solid var(--bv-line); color: var(--bv-muted); padding: 0 0 10px; }
+.map-shell .crumbs .crumb { color: var(--bv-accent); }
+.map-shell .tm-body { padding-top: 12px; }
+.map-shell .tm-level { gap: 8px; align-items: flex-start; }
+.map-shell .tm-cell {
+  background: var(--bv-card); border: 1px solid var(--bv-line2); border-radius: 6px;
+  color: var(--bv-text); margin: 0; padding: 11px 13px; min-height: 82px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.map-shell .tm-cell:hover {
+  border-color: var(--bv-accent);
+  background: color-mix(in srgb, var(--bv-accent) 10%, var(--bv-card));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bv-accent) 12%, transparent);
+}
+.map-shell .tm-label b { color: var(--bv-text); font-weight: 600; }
+.map-shell .tm-label small { color: var(--bv-muted); }
+.map-shell .tm-cell .tm-more { color: var(--bv-accent); opacity: .9; }
+
+/* 架构图 */
+.map-shell .arch-canvas { border: 0; border-radius: 0; padding: 0; background: transparent; }
+.map-shell .arch-svg .layer-label {
+  fill: var(--bv-accent); font: 500 10px/1 var(--mono); letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.map-shell .arch-svg .node rect {
+  fill: var(--bv-card); stroke: var(--bv-line2); stroke-width: 1.2;
+}
+.map-shell .arch-svg .node:hover rect,
+.map-shell .arch-svg .node rect.on {
+  fill: color-mix(in srgb, var(--bv-accent) 14%, var(--bv-card));
+  stroke: var(--bv-accent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--bv-accent) 40%, transparent));
+}
+.map-shell .arch-svg .node-title { fill: var(--bv-text); font-weight: 600; }
+.map-shell .arch-svg .node-meta { fill: var(--bv-muted); }
+.map-shell .arch-svg .edge { stroke: var(--bv-line2); opacity: .8; }
+.map-shell .arch-svg .node { cursor: pointer; }
+
+/* 影响扩散图 */
+.map-shell .impact-canvas { border: 0; border-radius: 0; padding: 0; background: transparent; }
+.map-shell .impact-svg .ring { stroke: var(--bv-line2); opacity: .45; }
+.map-shell .impact-svg .ring-label { fill: var(--bv-muted); }
+.map-shell .impact-svg .edge { stroke: var(--bv-line2); opacity: .8; }
+.map-shell .impact-svg .inode text { fill: var(--bv-text); }
+.map-shell .impact-svg .inode:hover text { fill: var(--bv-accent); }
+.map-shell .impact-svg .inode circle { stroke: var(--bv-bg); stroke-width: 1.5; }
+
+/* 图例 */
+.map-legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bv-line);
+  font: 500 10px/1 var(--mono); letter-spacing: .12em; color: var(--bv-muted);
+  text-transform: uppercase; }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
