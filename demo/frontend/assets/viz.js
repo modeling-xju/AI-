@@ -43,6 +43,25 @@
   const ACCESSOR_RE = /^(get|set|is)[A-Z0-9_]/;
   const isAccessor = (m) => ACCESSOR_RE.test(String((m && m.name) || ''));
 
+  // 后端给的签名是「返回类型(参数类型)」，且类型带全限定名：
+  // com.baomidou…IPage(java.util.Map,org.springblade…Query) —— 这里剥成 IPage(Map, Query)
+  const stripPkg = (text) => String(text == null ? '' : text)
+    .replace(/(?:\b[a-z_$][\w$]*\.)+([A-Za-z_$][\w$]*)/g, '$1');
+  const isCtor = (m) => /^<(init|clinit)>$/.test(String((m && m.name) || ''));
+
+  function methodRow(m, ownerName) {
+    const sig = String(m.signature || '');
+    const open = sig.indexOf('(');
+    const name = m.name === '<clinit>' ? 'static {}' : (m.name === '<init>' ? ownerName : (m.name || ''));
+    let ret = stripPkg(open >= 0 ? sig.slice(0, open) : sig);
+    // 自研解析器的签名把方法名也带上了（`Cart listCart(long id)`），Joern 的没有；统一只留返回类型
+    if (m.name && ret.endsWith(` ${m.name}`)) ret = ret.slice(0, -(m.name.length + 1)).trim();
+    const args = stripPkg(open >= 0 ? sig.slice(open) : '()');
+    const line = m.line ? `<span class="tk-line">L${m.line}</span>` : '';
+    return `<div class="code-row"><b class="tk-name">${esc(name)}</b><span class="tk-args">${esc(args)}</span>`
+      + (m.name === '<clinit>' ? '' : `<span class="tk-ret">${esc(ret)}</span>`) + line + '</div>';
+  }
+
   /* -------------------------------------------------------------- 通用目录树图 */
   // 一次画三层（模块 → 包 → 文件）的嵌套矩形树，面积按「类数/条目数」分配；
   // 点非叶子矩形下钻（面包屑回退），点叶子看检查器。
@@ -270,14 +289,19 @@
           const methods = cls.methods || [];
           const accessors = methods.filter(isAccessor);
           const rest = methods.filter((m) => !isAccessor(m));
-          const acc = accessors.length
-            ? `<p class="small mono muted">访问器 ${accessors.length} 个 · ${accessors.slice(0, 6)
-              .map((m) => m.name).join(' / ')}${accessors.length > 6 ? ' …' : ''}</p>` : '';
+          const rows = rest.slice(0, 12).map((m) => methodRow(m, cls.name)).join('');
+          const accRow = accessors.length
+            ? `<div class="code-row accessor"><span class="tk-acc">访问器 ${accessors.length} 个</span>
+                 <span class="tk-args">${esc(accessors.slice(0, 8).map((m) => m.name).join(' / '))}${accessors.length > 8 ? ' …' : ''}</span></div>`
+            : '';
           return `
           <div class="insp-block">
             <p><b>${esc(cls.name)}</b> <span class="badge">${esc(cls.layer || '')}</span></p>
-            ${rest.slice(0, 8).map((m) => `<p class="small mono">${esc(m.signature || m.name)}</p>`).join('')}
-            ${acc}
+            <div class="codebox">
+              <p class="code-head">${rows ? `方法 ${rest.length}${accessors.length ? ` · 访问器 ${accessors.length}` : ''}` : (accessors.length ? `访问器 ${accessors.length}` : '方法')}</p>
+              ${rows || (accessors.length ? '' : '<div class="code-row"><span class="tk-args">没有可解析的方法</span></div>')}
+              ${accRow}
+            </div>
           </div>`;
         }).join('')}
         <div class="insp-actions">

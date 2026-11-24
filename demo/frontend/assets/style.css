@@ -949,3 +949,20 @@ details.hl > summary { border-radius: 3px; }
 /* 访问器（getter/setter）在方法列表末尾收成一行 */
 .methods .accessors { list-style: none; padding: 6px 0 2px; border-top: 1px dashed var(--line-soft); }
 .methods .accessors span { font-size: 12px; }
+/* 检查器里的代码框：方法签名一行一条，名字高亮、返回类型靠右、行号在末尾 */
+.codebox { margin: 6px 0 4px; border: 1px solid var(--bv-line); border-radius: 6px; overflow: hidden;
+  background: color-mix(in srgb, var(--bv-panel) 78%, var(--bv-bg)); }
+.code-head { padding: 6px 9px 5px; font: 500 10px/1 var(--mono); letter-spacing: .12em;
+  text-transform: uppercase; color: var(--bv-text);
+  opacity: .72;
+  background: color-mix(in srgb, var(--bv-line) 26%, transparent); }
+.code-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; padding: 4px 8px;
+  font: 400 11.5px/1.55 var(--mono); border-top: 1px solid color-mix(in srgb, var(--bv-line) 55%, transparent); }
+.code-row:first-of-type { border-top: 0; }
+.code-row:hover { background: color-mix(in srgb, var(--bv-accent) 7%, transparent); }
+.tk-name { color: var(--bv-accent); font-weight: 600; flex: 0 0 auto; }
+.tk-args { color: var(--bv-code); opacity: .82; min-width: 0; white-space: normal; word-break: break-word; }
+.tk-ret { margin-left: auto; color: var(--bv-code); opacity: .8; flex: 0 0 auto; }
+.tk-line { color: var(--bv-code); font-size: 10.5px; flex: 0 0 auto; min-width: 36px; text-align: right; opacity: .85; }
+.code-row.accessor { color: var(--bv-muted); }
+.tk-acc { flex: 0 0 auto; color: var(--bv-text); opacity: .78; }

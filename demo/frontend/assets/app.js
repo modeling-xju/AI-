@@ -558,6 +558,10 @@ function groupLabel(dir) {
   return head === tail.split('/')[0] ? tail : `${head} / ${tail}`;
 }
 
+// 方法签名里的类型带全限定名，列表里太长，统一剥掉包前缀
+const stripPkg = (text) => String(text == null ? '' : text)
+  .replace(/(?:\b[a-z_$][\w$]*\.)+([A-Za-z_$][\w$]*)/g, '$1');
+
 function methodItem(m) {
   // Joern 会把构造方法与编译器生成的方法一并报出来，展示时换成可读的名字
   const display = /^<(init|clinit)>$/.test(m.name || '')
@@ -569,7 +573,7 @@ function methodItem(m) {
   ].join('');
   const calls = (m.calls || []).slice(0, 4).map((x) =>
     `<span class="chip ${x.resolved ? '' : 'warn'}">→ ${esc(x.qualifier ? x.qualifier + '.' : '')}${esc(x.name)}</span>`).join('');
-  return `<li class="method"><b>${esc(display)}</b><code>${esc(m.signature)}</code>
+  return `<li class="method"><b>${esc(display)}</b><code>${esc(stripPkg(m.signature))}</code>
     <span class="muted">第 ${m.line} 行 · ${m.loc} 行</span>${facts}<span class="calls">${calls}</span></li>`;
 }
 
