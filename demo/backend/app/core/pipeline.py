@@ -244,7 +244,9 @@ def _store_functions(pid):
             "SELECT m.id, m.name, m.return_type, m.params, m.is_public, m.doc, "
             "c.name AS class_name, c.layer FROM methods m JOIN classes c ON c.id=m.class_id "
             "WHERE m.project_id=? AND c.module_id=?", (pid, module["id"]))
-        candidates = [m for m in methods if m["is_public"] and not _is_accessor(m)]
+        candidates = [m for m in methods
+                      if m["is_public"] and not _is_accessor(m)
+                      and not (m["name"] or "").startswith("<")]
         candidates.sort(key=lambda m: (LAYER_RANK.get(m["layer"], 9), len(m["name"]), m["id"]))
         for method in candidates[:8]:
             ranked.append({"module": module, "method": method})

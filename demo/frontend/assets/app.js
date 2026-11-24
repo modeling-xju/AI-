@@ -7,7 +7,7 @@ const state = {
   pid: Number(localStorage.getItem('pid') || 0),
   projects: [],
   poll: null,
-  search: { q: '加入购物车', mode: 'fusion' },
+  search: { q: '', mode: 'fusion' },
   graph: { op: 'callers', cls: 0, from: '', to: '' },
   impactClass: 0,
   docId: 0,
@@ -238,12 +238,18 @@ async function renderOverview() {
   const metrics = data.metrics.map((m) => `
     <div class="stat"><b>${metricValue(m)}</b>
       <span>${esc(m.label)}</span><em>${esc(m.note || '')}</em></div>`).join('');
+  const classChips = (list) => {
+    const shown = list.slice(0, 8);
+    const rest = list.length - shown.length;
+    return shown.map((c) => `<span class="chip">${esc(c.name)}</span>`).join('') +
+      (rest > 0 ? `<span class="chip more" data-more="${list.slice(shown.length).map((c) => esc(c.name)).join('|')}">+${rest}</span>` : '');
+  };
   const rows = data.modules.map((m) => `
     <tr>
       <td><a href="#/functions">${esc(m.name)}</a></td>
       <td class="nowrap">${m.size} 类 / ${m.method_count} 方法</td>
       <td>${fmt(m.cohesion, 3)}</td>
-      <td class="classes">${m.classes.map((c) => `<span class="chip">${esc(c.name)}</span>`).join('')}</td>
+      <td class="classes">${classChips(m.classes)}</td>
     </tr>`).join('');
   const body = `
     <section class="head">
@@ -269,30 +275,106 @@ async function renderOverview() {
         </ul></div>
     </div>`;
   draw(body);
+
+  // 类 chip 折叠：点 +N 就地展开，避免 60 多个类把表格行撑高
+  document.querySelectorAll('table.modules .chip.more').forEach((el) => {
+    el.onclick = () => {
+      const names = (el.dataset.more || '').split('|').filter(Boolean);
+      el.insertAdjacentHTML('beforebegin', names.map((n) => `<span class="chip">${esc(n)}</span>`).join(''));
+      el.remove();
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ 视图：结构 */
+const STRUCT = { query: '' };
+
+/** 按目录（包）分组；带过滤时只保留命中的文件/类。 */
+function structureGroups(data, query) {
+  const needle = (query || '').trim().toLowerCase();
+  const groups = new Map();
+  data.files.forEach((file) => {
+    const classes = file.classes || [];
+    const path = String(file.path || '').replace(/\\/g, '/');
+    if (needle) {
+      const haystack = [path, file.package || '', ...classes.map((c) => c.name)]
+        .join(' ').toLowerCase();
+      if (!haystack.includes(needle)) return;
+    }
+    const cut = path.lastIndexOf('/');
+    const dir = cut > 0 ? path.slice(0, cut) : '（根目录）';
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push({ ...file, path });
+  });
+  return [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+}
+
+/** 目录标签：保留模块名 + 末两段包名，避免满屏 controller 分不清来源。 */
+function groupLabel(dir) {
+  if (dir === '（根目录）') return dir;
+  const parts = dir.split('/').filter(Boolean);
+  const tail = parts.slice(-2).join('/');
+  const module = parts[0];
+  return module && module !== tail.split('/')[0] ? `${module} / ${tail}` : tail;
+}
+
+function methodItem(m) {
+  const facts = [
+    m.branches ? `<span class="chip soft">分支 ${m.branches}</span>` : '',
+    m.loops ? `<span class="chip soft">循环 ${m.loops}</span>` : '',
+    m.catches ? `<span class="chip soft">捕获 ${m.catches}</span>` : '',
+  ].join('');
+  const calls = (m.calls || []).slice(0, 4).map((x) =>
+    `<span class="chip ${x.resolved ? '' : 'warn'}">→ ${esc(x.qualifier ? x.qualifier + '.' : '')}${esc(x.name)}</span>`).join('');
+  return `<li><b>${esc(m.name)}</b><code>${esc(m.signature)}</code>
+    <span class="muted">第 ${m.line} 行 · ${m.loc} 行</span>${facts}<span class="calls">${calls}</span></li>`;
+}
+
+function classBlock(c) {
+  const methods = (c.methods || []).map(methodItem).join('');
+  return `<details class="cls"><summary><b>${esc(c.name)}</b>
+    <span class="badge">${esc(c.layer)}</span><span class="muted">${esc(c.kind)} · 第 ${c.line} 行</span></summary>
+    <ul class="methods">${methods || '<li class="muted">无可解析方法</li>'}</ul></details>`;
+}
+
+function structureHtml(data, query, expand) {
+  const groups = structureGroups(data, query);
+  if (!groups.length) {
+    return '<p class="muted">没有匹配的文件，换个关键词试试。</p>';
+  }
+  // 两级分组：模块（顶层目录）→ 包目录 → 文件 → 类
+  const modules = new Map();
+  groups.forEach(([dir, files]) => {
+    const module = dir === '（根目录）' ? dir : dir.split('/')[0];
+    if (!modules.has(module)) modules.set(module, []);
+    modules.get(module).push([dir, files]);
+  });
+  const pkgHtml = ([dir, files]) => {
+    const classCount = files.reduce((sum, f) => sum + (f.classes || []).length, 0);
+    const body = files.map((f) => `<details class="file"><summary><b>${esc(f.path.split('/').pop())}</b>
+        <span class="chip soft">${esc(f.category || '源码')}</span>
+        <span class="muted">${(f.classes || []).length} 类${f.loc ? ` · ${f.loc} 行` : ''}</span></summary>
+        ${(f.classes || []).map(classBlock).join('') || '<p class="muted">没有解析到类</p>'}</details>`).join('');
+    return `<details class="pkg" ${expand ? 'open' : ''} title="${esc(dir)}">
+      <summary><b>${esc(groupLabel(dir))}</b>
+        <span class="muted">${files.length} 个文件 · ${classCount} 个类</span></summary>
+      <div class="pkg-body">${body}</div></details>`;
+  };
+  return [...modules.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([module, pkgs]) => {
+      const files = pkgs.reduce((sum, [, list]) => sum + list.length, 0);
+      const classes = pkgs.reduce((sum, [, list]) => sum
+        + list.reduce((n, f) => n + (f.classes || []).length, 0), 0);
+      return `<details class="mod" ${expand ? 'open' : ''}>
+        <summary><b>${esc(module)}</b>
+          <span class="muted">${pkgs.length} 个包 · ${files} 个文件 · ${classes} 个类</span></summary>
+        <div class="mod-body">${pkgs.map(pkgHtml).join('')}</div></details>`;
+    }).join('');
+}
+
 async function renderStructure() {
   const data = await api(`/api/projects/${state.pid}/structure`);
-  const blocks = data.files.map((f) => {
-    const classes = f.classes.map((c) => {
-      const methods = c.methods.map((m) => `
-        <li><b>${esc(m.name)}</b><code>${esc(m.signature)}</code>
-          <span class="muted">第 ${m.line} 行 · ${m.loc} 行</span>
-          ${m.branches ? `<span class="chip soft">分支 ${m.branches}</span>` : ''}
-          ${m.loops ? `<span class="chip soft">循环 ${m.loops}</span>` : ''}
-          ${m.catches ? `<span class="chip soft">捕获 ${m.catches}</span>` : ''}
-          <span class="calls">${(m.calls || []).slice(0, 4).map((x) =>
-            `<span class="chip ${x.resolved ? '' : 'warn'}">→ ${esc(x.qualifier ? x.qualifier + '.' : '')}${esc(x.name)}</span>`).join('')}</span>
-        </li>`).join('');
-      return `<details class="cls"><summary><b>${esc(c.name)}</b>
-        <span class="badge">${esc(c.layer)}</span><span class="muted">${esc(c.kind)} · 第 ${c.line} 行</span></summary>
-        <ul class="methods">${methods || '<li class="muted">无可解析方法</li>'}</ul></details>`;
-    }).join('');
-    return `<details class="file"><summary><b>${esc(f.path)}</b>
-      <span class="chip soft">${esc(f.category || '源码')}</span>
-      <span class="muted">${f.classes.length} 类 · ${f.loc} 行</span></summary>${classes}</details>`;
-  }).join('');
   const graph = data.graph || {};
   const graphLine = graph.nodes
     ? `属性图：${graph.nodes} 节点 / ${graph.edges} 边` +
@@ -302,9 +384,47 @@ async function renderStructure() {
     : '';
   draw(`
     <section class="head"><div><h1>代码结构</h1>
-      <p class="muted">源码解析结果：${data.classes_total} 个类、${data.methods_total} 个方法、${data.calls_total} 个调用点。</p>
+      <p class="muted">源码解析结果：${data.classes_total} 个类、${data.methods_total} 个方法、${data.calls_total} 个调用点。
+      按目录分组，点开目录 → 文件 → 类 → 方法逐层钻取。</p>
       ${graphLine ? `<p class="meta"><span>${graphLine}</span></p>` : ''}</div></section>
-    <div class="files">${blocks || '<p class="muted">暂无解析结果</p>'}</div>`);
+    <div class="toolbar">
+      <input id="struct-q" class="grow" value="${esc(STRUCT.query)}"
+        placeholder="按路径、包名或类名过滤，例如 controller、User、OrderService">
+      <button class="ghost" id="struct-reset">清空</button>
+      <button class="ghost" id="struct-open">展开全部</button>
+      <button class="ghost" id="struct-close">折叠全部</button>
+      <span class="muted" id="struct-count"></span>
+    </div>
+    <div class="files" id="struct-files"></div>`);
+
+  const box = document.getElementById('struct-files');
+  const counter = document.getElementById('struct-count');
+  const paint = () => {
+    const groups = structureGroups(data, STRUCT.query);
+    const files = groups.reduce((sum, [, list]) => sum + list.length, 0);
+    const classes = groups.reduce((sum, [, list]) => sum
+      + list.reduce((n, f) => n + (f.classes || []).length, 0), 0);
+    counter.textContent = `${groups.length} 个目录 · ${files} 个文件 · ${classes} 个类`;
+    box.innerHTML = structureHtml(data, STRUCT.query, Boolean(STRUCT.query.trim()));
+  };
+  paint();
+
+  const input = document.getElementById('struct-q');
+  input.oninput = () => {
+    STRUCT.query = input.value;
+    paint();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  };
+  document.getElementById('struct-reset').onclick = () => {
+    STRUCT.query = '';
+    input.value = '';
+    paint();
+    input.focus();
+  };
+  const toggleAll = (open) => box.querySelectorAll('details.mod, details.pkg').forEach((el) => { el.open = open; });
+  document.getElementById('struct-open').onclick = () => toggleAll(true);
+  document.getElementById('struct-close').onclick = () => toggleAll(false);
 }
 
 /* ------------------------------------------------------------------ 视图：功能 */
@@ -320,20 +440,66 @@ function functionItem(c) {
     (extra ? `<span class="origin">${esc(extra)}</span>` : '') + '</li>';
 }
 
+const FUNCS = { query: '' };
+
+function functionPanel(root, needle) {
+  const children = (root.children || []).filter((c) => {
+    if (!needle) return true;
+    const haystack = [c.name, c.summary || '', c.evidence || ''].join(' ').toLowerCase();
+    return haystack.includes(needle);
+  });
+  if (!children.length) return '';
+  return `<details class="panel fn" ${needle ? 'open' : ''}>
+    <summary><b>${esc(root.name)}</b><span class="muted">${children.length} 条</span></summary>
+    <ul class="tree">${children.map(functionItem).join('')}</ul></details>`;
+}
+
 async function renderFunctions() {
   const data = await api(`/api/projects/${state.pid}/functions`);
-  const panels = data.tree.map((root) => `
-    <section class="panel">
-      <h3>${esc(root.name)}</h3>
-      <ul class="tree">
-        ${root.children.map(functionItem).join('')}
-      </ul>
-    </section>`).join('');
   draw(`
     <section class="head"><div><h1>功能需求恢复</h1>
       <p class="muted">一级为模块功能，二级为可核对到方法的原子功能；每条都标了实现位置。</p></div>
       <span class="badge ok">${data.leaf_count} 条</span></section>
-    ${panels || '<p class="muted">暂无功能条目</p>'}`);
+    <div class="toolbar">
+      <input id="fn-q" class="grow" value="${esc(FUNCS.query)}"
+        placeholder="按功能名、说明或证据方法过滤，例如 登录、订单、UserController">
+      <button class="ghost" id="fn-reset">清空</button>
+      <button class="ghost" id="fn-open">展开全部</button>
+      <button class="ghost" id="fn-close">折叠全部</button>
+      <span class="muted" id="fn-count"></span>
+    </div>
+    <div id="fn-list"></div>`);
+
+  const box = document.getElementById('fn-list');
+  const counter = document.getElementById('fn-count');
+  const paint = () => {
+    const needle = FUNCS.query.trim().toLowerCase();
+    const panels = data.tree.map((root) => functionPanel(root, needle)).filter(Boolean).join('');
+    const shown = needle
+      ? data.tree.reduce((sum, root) => sum + (root.children || []).filter((c) =>
+          [c.name, c.summary || '', c.evidence || ''].join(' ').toLowerCase().includes(needle)).length, 0)
+      : data.leaf_count;
+    counter.textContent = `${data.tree.length} 个模块 · 显示 ${shown} 条`;
+    box.innerHTML = panels || '<p class="muted">没有匹配的功能条目，换个关键词试试。</p>';
+  };
+  paint();
+
+  const input = document.getElementById('fn-q');
+  input.oninput = () => {
+    FUNCS.query = input.value;
+    paint();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  };
+  document.getElementById('fn-reset').onclick = () => {
+    FUNCS.query = '';
+    input.value = '';
+    paint();
+    input.focus();
+  };
+  const toggleAll = (open) => box.querySelectorAll('details.fn').forEach((el) => { el.open = open; });
+  document.getElementById('fn-open').onclick = () => toggleAll(true);
+  document.getElementById('fn-close').onclick = () => toggleAll(false);
 }
 
 /* ------------------------------------------------------------------ 视图：架构 */
@@ -382,11 +548,15 @@ async function renderArchitecture() {
 
 /* ------------------------------------------------------------------ 视图：检索 */
 async function renderSearch() {
-  const { q, mode } = state.search;
-  const [data, structure] = await Promise.all([
-    api(`/api/projects/${state.pid}/search?q=${encodeURIComponent(q)}&mode=${mode}&k=10`),
+  const { mode } = state.search;
+  const [structure] = await Promise.all([
     api(`/api/projects/${state.pid}/structure`),
   ]);
+  // 没输入过就按工程规模给一个像样的默认查询：小工程找购物车，大工程找登录
+  const fallback = structure.classes_total > 100 ? '登录' : '加入购物车';
+  const q = state.search.q || fallback;
+  state.search = { q, mode };
+  const data = await api(`/api/projects/${state.pid}/search?q=${encodeURIComponent(q)}&mode=${mode}&k=10`);
   const classes = [];
   structure.files.forEach((f) => f.classes.forEach((c) => classes.push({ id: c.id, name: c.name, layer: c.layer })));
   if (!state.graph.cls && classes.length) state.graph.cls = classes[0].id;
@@ -400,6 +570,10 @@ async function renderSearch() {
         <span class="score">${fmt(r.score, 3)}</span></div>
       <p class="snippet">${esc(r.snippet)}</p>
     </li>`).join('');
+  const modeLabel = { fusion: '融合排序', bm25: 'BM25', vector: '向量', keyword: '关键词' }[mode] || mode;
+  const quick = ['登录', '订单', '菜单', '令牌', '用户', '租户'];
+  const quickChips = quick.map((w) =>
+    `<button class="chip quick" type="button" data-q="${esc(w)}">${esc(w)}</button>`).join('');
 
   let graphBody = '<p class="muted">选一个类查它的调用方/被调方，或填两个类名查调用路径。</p>';
   const g = state.graph;
@@ -433,6 +607,10 @@ async function renderSearch() {
       </select>
       <button class="primary" type="submit">检索</button>
     </form>
+    <div class="hit-meta">
+      <span class="muted">命中 <b>${data.results.length}</b> 条 · 模式 ${esc(modeLabel)}</span>
+      <span class="quick">${quickChips}</span>
+    </div>
     <ul class="hits">${rows || '<li class="muted">没有命中，换个说法试试</li>'}</ul>
 
     <h2>调用链查询</h2>
@@ -457,6 +635,12 @@ async function renderSearch() {
     state.search = { q: document.getElementById('q').value.trim() || '加入购物车', mode: document.getElementById('mode').value };
     renderSearch();
   };
+  document.querySelectorAll('.hit-meta .chip.quick').forEach((el) => {
+    el.onclick = () => {
+      state.search = { q: el.dataset.q, mode: state.search.mode };
+      renderSearch();
+    };
+  });
   document.getElementById('g-go').onclick = () => {
     state.graph = {
       op: document.getElementById('g-op').value,
