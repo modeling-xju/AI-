@@ -241,7 +241,7 @@ def _store_functions(pid):
     ranked = []
     for module in modules:
         methods = db.query(
-            "SELECT m.id, m.name, m.return_type, m.params, m.is_public, m.doc, "
+            "SELECT m.id, m.name, m.return_type, m.params, m.is_public, m.doc, m.line, "
             "c.name AS class_name, c.layer FROM methods m JOIN classes c ON c.id=m.class_id "
             "WHERE m.project_id=? AND c.module_id=?", (pid, module["id"]))
         candidates = [m for m in methods
@@ -262,10 +262,31 @@ def _store_functions(pid):
                 continue
         entry = "%s.%s" % (method["class_name"], method["name"])
         entries.append({"id": method["id"], "label": label, "entry": entry,
-                        "return_type": method["return_type"]})
+                        "return_type": method["return_type"], "module_id": module["id"],
+                        "line": method["line"]})
         rows.append(item)
 
     summaries = knowledge.summarize_functions(entries)
+
+    # 同一模块里重名时补类名；同一个类的重载仍重名时补行号。
+    # 两轮都以「原始标签」为基准，避免出现「xxx（A）（第 3 行）」这种叠加。
+    origin = {id(entry): entry["label"] for entry in entries}
+
+    def dup_groups():
+        groups = {}
+        for entry in entries:
+            groups.setdefault((entry["module_id"], entry["label"]), []).append(entry)
+        return [g for g in groups.values() if len(g) > 1]
+
+    for group in dup_groups():
+        for entry in group:
+            cls = entry["entry"].split(".")[0]
+            entry["label"] = "%s（%s）" % (origin[id(entry)], cls)
+    for group in dup_groups():
+        for entry in group:
+            cls = entry["entry"].split(".")[0]
+            entry["label"] = "%s（%s 第 %s 行）" % (origin[id(entry)], cls, entry["line"])
+
     leaves = 0
     for module in modules:
         parent_id = db.execute(

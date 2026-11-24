@@ -516,3 +516,7 @@ button.link:hover { text-decoration: underline; }
   a { color: inherit; text-decoration: none; }
   .chip { border-color: #cfd4d8; }
 }
+/* 功能页折叠行的预览文字：右端灰字，窄屏隐藏 */
+.fn-preview { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 12px; color: var(--faint); padding-left: 14px; }
+@media (max-width: 700px) { .fn-preview { display: none; } }

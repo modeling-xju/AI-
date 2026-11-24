@@ -481,8 +481,12 @@ function functionPanel(root, needle) {
     return haystack.includes(needle);
   });
   if (!children.length) return '';
+  // 折叠态也给一行预览：只看「模块 7 条」看不出这个模块到底在做什么
+  const preview = [...new Set(children.map((c) => c.name))].slice(0, 3).join('、')
+    + (children.length > 3 ? ' 等' : '');
   return `<details class="panel fn" ${needle ? 'open' : ''}>
-    <summary><b>${esc(root.name)}</b><span class="muted">${children.length} 条</span></summary>
+    <summary><b>${esc(root.name)}</b><span class="muted">${children.length} 条</span>
+      <span class="fn-preview">${esc(preview)}</span></summary>
     <ul class="tree">${children.map(functionItem).join('')}</ul></details>`;
 }
 
