@@ -75,8 +75,9 @@ function view(name) {
 
 function currentRoute() {
   const raw = (location.hash || '#/overview').replace(/^#\/?/, '');
-  const [name, ...rest] = raw.split('/');
-  return { name: name || 'overview', rest };
+  const [path, search = ''] = raw.split('?');
+  const [name, ...rest] = path.split('/');
+  return { name: name || 'overview', rest, query: new URLSearchParams(search) };
 }
 
 /* ------------------------------------------------------------------ 项目选择 */
@@ -320,14 +321,18 @@ const STRUCT = { query: '' };
 /** 按目录（包）分组；带过滤时只保留命中的文件/类。 */
 function structureGroups(data, query) {
   const needle = (query || '').trim().toLowerCase();
+  // 允许按 Class.method 过滤（从功能页跳过来时就是这种串）
+  const terms = needle ? [needle, needle.split('.')[0]] : [];
   const groups = new Map();
   data.files.forEach((file) => {
     const classes = file.classes || [];
     const path = String(file.path || '').replace(/\\/g, '/');
     if (needle) {
-      const haystack = [path, file.package || '', ...classes.map((c) => c.name)]
-        .join(' ').toLowerCase();
-      if (!haystack.includes(needle)) return;
+      const haystack = [path, file.package || '',
+        ...classes.map((c) => c.name),
+        ...classes.flatMap((c) => (c.methods || []).map((m) => m.name)),
+      ].join(' ').toLowerCase();
+      if (!terms.some((t) => haystack.includes(t))) return;
     }
     const cut = path.lastIndexOf('/');
     const dir = cut > 0 ? path.slice(0, cut) : '（根目录）';
@@ -406,6 +411,9 @@ function structureHtml(data, query, expand) {
 }
 
 async function renderStructure() {
+  // 别的页面点「Class.method」跳过来时带 focus 参数，直接填进过滤框并定位
+  const focus = (currentRoute().query.get('focus') || '').trim();
+  if (focus) STRUCT.query = focus;
   const data = await api(`/api/projects/${state.pid}/structure`);
   const graph = data.graph || {};
   const graphLine = graph.nodes
@@ -457,6 +465,29 @@ async function renderStructure() {
   const toggleAll = (open) => box.querySelectorAll('details.mod, details.pkg').forEach((el) => { el.open = open; });
   document.getElementById('struct-open').onclick = () => toggleAll(true);
   document.getElementById('struct-close').onclick = () => toggleAll(false);
+
+  if (focus) {
+    // focus 形如 Class 或 Class.method：先定位类，再把对应方法行也高亮
+    const clsName = focus.split('.')[0];
+    const methodName = focus.split('.').slice(-1)[0];
+    const target = Array.from(box.querySelectorAll('details.cls'))
+      .find((el) => (el.querySelector('summary b') || {}).textContent === clsName);
+    if (target) {
+      for (let el = target.parentElement; el && el !== box; el = el.parentElement) {
+        if (el.tagName === 'DETAILS') el.open = true;
+      }
+      target.open = true;
+      target.classList.add('hl');
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setTimeout(() => target.classList.remove('hl'), 2200);
+      const row = Array.from(target.querySelectorAll('.method'))
+        .find((el) => el.textContent.includes(methodName));
+      if (row) {
+        row.classList.add('hl');
+        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ 视图：功能 */
@@ -468,7 +499,14 @@ function functionItem(c) {
   const summary = c.summary || '';
   const evidence = (c.evidence || '').trim();
   const extra = evidence && !summary.includes(evidence) ? evidence : '';
-  return `<li><b>${esc(c.name)}</b><span class="ev">${esc(summary)}</span>` +
+  // 证据形如 Class.method：把功能名做成链接，点了跳到结构页并定位到那个类
+  const target = evidence.split(/[（(]/)[0].trim();
+  const jump = /^[A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*$/.test(target);
+  const name = jump
+    ? `<a class="jump" href="#/structure?focus=${encodeURIComponent(target)}"
+         title="在代码结构中定位 ${esc(target)}"><b>${esc(c.name)}</b></a>`
+    : `<b>${esc(c.name)}</b>`;
+  return `<li>${name}<span class="ev">${esc(summary)}</span>` +
     (extra ? `<span class="origin">${esc(extra)}</span>` : '') + '</li>';
 }
 
@@ -864,7 +902,8 @@ async function renderCompare() {
   const bar = (v) => `<div class="bar-mini"><i style="width:${Math.min(100, Math.round(v * 100))}%"></i></div>`;
   draw(`
     <section class="head"><div><h1>评测对比</h1>
-      <p class="muted">三处算法环节的量化结果，均可在现场复现。</p></div></section>
+      <p class="muted">三处算法环节的量化结果，均可在现场复现。</p></div>
+      <button class="ghost" id="copy-md">复制为 Markdown</button></section>
     <h2>结构指标</h2>
     <table><thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead><tbody>${rows}</tbody></table>
     <h2>语义检索召回率</h2>
@@ -876,6 +915,26 @@ async function renderCompare() {
     </tbody></table>
     <p class="muted">评测用 ${rc.cases} 个由功能条目构造的查询，相关集合是该功能条目指到的那个方法。这类查询的证据串里往往直接含类名，
       关键词通道因此占便宜；融合的目标是「不输给任一单路」，具体谁高取决于工程与查询措辞，数值按工程实测。</p>`);
+
+  // 写论文时直接粘进表格，省得手抄
+  document.getElementById('copy-md').onclick = async () => {
+    const md = [
+      '| 指标 | 数值 | 说明 |', '| --- | --- | --- |',
+      ...data.metrics.map((m) => `| ${m.label} | ${metricText(m)} | ${(m.note || '').replace(/\|/g, '\\|')} |`),
+      '', `| 方案 | Recall@5 | 说明 |`, '| --- | --- | --- |',
+      `| 融合排序 | ${pct(rc.fusion)} | BM25 与向量名次融合，叠加调用图邻居 |`,
+      `| BM25 | ${pct(rc.bm25)} | 按词频与逆文档频率排序 |`,
+      `| 向量检索 | ${pct(rc.vector)} | 词项加权向量的余弦相似度 |`,
+      `| 关键词基线 | ${pct(rc.keyword)} | 子串匹配，作为对照 |`,
+      '', `> 评测用 ${rc.cases} 个由功能条目构造的查询。`,
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(md);
+      toast('已复制 Markdown 表格');
+    } catch (_) {
+      toast('浏览器不允许写剪贴板，请手动选中表格复制');
+    }
+  };
 }
 
 /* ------------------------------------------------------------------ 视图：文档 */
@@ -937,13 +996,21 @@ async function renderDocs() {
 
   document.querySelectorAll('[data-gen]').forEach((b) => {
     b.onclick = async () => {
+      // 生成要一两秒（大工程更久），先把按钮锁住，别让人以为没点上
+      const label = b.textContent;
+      document.querySelectorAll('[data-gen]').forEach((x) => { x.disabled = true; });
+      b.textContent = '生成中…';
       try {
         const r = await api(`/api/projects/${state.pid}/documents/${b.dataset.gen}`, { method: 'POST' });
         state.docId = r.id;
         state.docKind = b.dataset.gen;
         toast('已生成：' + r.title);
         renderDocs();
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+        b.disabled = false;
+        b.textContent = label;
+      }
     };
   });
   document.querySelectorAll('.doc-tabs .tab').forEach((b) => {
@@ -1030,8 +1097,11 @@ async function render() {
   try {
     await fn();
   } catch (err) {
+    // 网络抖一下不该只能整页刷新：给一个只重跑当前视图的「重试」
     $app.innerHTML = shell(`<h1>出错了</h1><p class="muted">${esc(err.message)}</p>
-      <button class="primary" onclick="location.reload()">刷新</button>`);
+      <div class="toolbar"><button class="primary" id="retry-view">重试</button>
+        <button class="ghost" onclick="location.reload()">刷新页面</button></div>`);
+    document.getElementById('retry-view').onclick = () => render();
   }
 }
 
@@ -1050,5 +1120,24 @@ window.addEventListener('afterprint', () => {
 });
 const printBtn = document.getElementById('print-btn');
 if (printBtn) printBtn.onclick = () => window.print();
+
+/* 键盘：/ 聚焦当前页的过滤框或搜索框，Esc 清空 */
+window.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = (document.activeElement || {}).tagName;
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if (e.key === '/' && !typing) {
+    const box = document.getElementById('struct-q') || document.getElementById('fn-q')
+      || document.getElementById('q');
+    if (box) { e.preventDefault(); box.focus(); box.select(); }
+    return;
+  }
+  if (e.key === 'Escape' && typing) {
+    const el = document.activeElement;
+    if (el.id === 'struct-q') { STRUCT.query = ''; el.value = ''; el.dispatchEvent(new Event('input')); }
+    if (el.id === 'fn-q') { FUNCS.query = ''; el.value = ''; el.dispatchEvent(new Event('input')); }
+    el.blur();
+  }
+});
 
 render();

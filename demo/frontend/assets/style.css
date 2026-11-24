@@ -288,7 +288,7 @@ td.nowrap { white-space: nowrap; }
 .chip.soft { background: var(--line-soft); border-color: transparent; color: var(--muted); }
 .hit-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 8px; }
 .hit-meta .quick { display: flex; gap: 5px; flex-wrap: wrap; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--line);
+.badge { color: #3f474d; display: inline-block; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--line);
   color: var(--faint); font: 500 10.5px/1.6 var(--mono); letter-spacing: .08em; }
 .badge.ok { border-color: #cfe3d6; background: #f2f9f4; color: var(--ok); }
 
@@ -380,7 +380,7 @@ details.panel.fn > ul.tree { padding: 0 18px 12px; }
 .hit-row:last-child { border-bottom: none; }
 .hit-row:hover { background: #fbfcfd; }
 .hit-row.on { background: #f4f8fb; box-shadow: inset 2px 0 0 var(--primary); }
-.hit-row .badge { grid-area: k; }
+.hit-row .badge { color: #3f474d; grid-area: k; }
 .hit-row b { grid-area: t; font-size: 13px; font-weight: 600; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .hit-row .score { grid-area: s; font: 600 11.5px/1 var(--mono); color: var(--primary);
@@ -520,3 +520,9 @@ button.link:hover { text-decoration: underline; }
 .fn-preview { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; font-size: 12px; color: var(--faint); padding-left: 14px; }
 @media (max-width: 700px) { .fn-preview { display: none; } }
+
+/* 跨页跳转：功能名 -> 结构页定位 */
+a.jump { color: var(--ink); text-decoration: none; }
+a.jump:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+details.hl > summary, .method.hl { background: #eaf4fd; box-shadow: inset 2px 0 0 var(--primary); }
+details.hl > summary { border-radius: 3px; }

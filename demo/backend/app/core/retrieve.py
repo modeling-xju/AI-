@@ -330,7 +330,11 @@ def search(pid, query, mode="bm25", k=10):
 
 
 def _expected_modules(pid):
-    """用二级功能的名称当查询，正确答案 = 该功能条目指到的那个方法。"""
+    """用二级功能的名称当查询，正确答案 = 该功能条目指到的那个方法。
+
+    名字里可能带「（类名 第 N 行）」这类消歧后缀，那是我们自己加的，不该当成
+    查询词的一部分（否则关键词基线会因为后缀而误判为不命中）。
+    """
     functions = db.query("SELECT id, name, evidence FROM functions "
                          "WHERE project_id=? AND level=2 ORDER BY id", (pid,))
     cases = []
@@ -342,9 +346,17 @@ def _expected_modules(pid):
         found = db.query_one(
             "SELECT m.id FROM methods m JOIN classes c ON c.id=m.class_id "
             "WHERE m.project_id=? AND c.name=? AND m.name=?", (pid, class_name, method_name))
-        if found and row["name"]:
-            cases.append({"query": row["name"], "expected": {found["id"]}})
+        query = _strip_suffix(row["name"])
+        if found and query:
+            cases.append({"query": query, "expected": {found["id"]}})
     return cases
+
+
+def _strip_suffix(name):
+    text = (name or "").strip()
+    while text.endswith("）") and "（" in text:
+        text = text[:text.rindex("（")].strip()
+    return text
 
 
 def evaluate(pid, k=5):
