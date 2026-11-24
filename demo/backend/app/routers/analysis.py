@@ -33,5 +33,5 @@ def compare(pid: int):
 
 
 @router.get("/impact/{class_id}")
-def impact(pid: int, class_id: int):
-    return services.impact(pid, class_id)
+def impact(pid: int, class_id: int, method: str = ""):
+    return services.impact(pid, class_id, method or None)

@@ -6,6 +6,8 @@ demo/data/
 
 # Screenshots / recordings are local artifacts
 demo/shots/
+# lint reports emitted next to screenshots by the shoot tool
+*-report.json
 
 # Third-party sample: SpringBlade is large; fetch it with demo/scripts/fetch_springblade.py
 demo/samples/springblade/

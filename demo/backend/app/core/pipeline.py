@@ -16,6 +16,8 @@ DEP_WEIGHT = 0.4
 
 LAYER_RANK = {"接入层": 0, "业务层": 1, "数据层": 2, "公共层": 3, "领域层": 4, "其他": 5}
 GENERIC_LABELS = {"处理", "列出", "保存", "更新", "查询", "删除", "添加", "查看", "设置"}
+# 工具类里的方法不算「功能条目」：简介要求过滤访问器与工具方法
+TOOL_CLASS_RE = re.compile(r"(Util|Utils|Helper|Constant|Constants)$")
 STEP_PERCENT = {
     "": 0, "扫描源码": 8, "解析结构": 26, "解析调用": 42, "社区发现": 58,
     "归纳功能": 70, "恢复架构": 82, "计算指标": 92, "导出代码属性图": 97, "完成": 100,
@@ -78,6 +80,15 @@ def _store_structure(pid):
     db.execute_many("INSERT INTO calls(project_id, caller_id, callee_name, qualifier, line) "
                     "VALUES(?,?,?,?,?)", call_rows)
     _resolve_calls(pid)
+    # 解析不到、但能看出是基础设施的调用，记为外部依赖
+    external_rows = []
+    for row in db.query("SELECT callee_name, qualifier FROM calls WHERE project_id=? "
+                        "AND callee_id IS NULL", (pid,)):
+        token = row["qualifier"] or row["callee_name"]
+        kind = _external_kind(token)
+        if kind != "第三方库":
+            external_rows.append((token, kind))
+    _store_externals(pid, external_rows)
     return len(class_rows), len(rows), len(call_rows)
 
 
@@ -312,7 +323,8 @@ def _store_functions(pid):
             "WHERE m.project_id=? AND c.module_id=?", (pid, module["id"]))
         candidates = [m for m in methods
                       if m["is_public"] and not _is_accessor(m)
-                      and not (m["name"] or "").startswith("<")]
+                      and not (m["name"] or "").startswith("<")
+                      and not TOOL_CLASS_RE.search(m["class_name"])]
         candidates.sort(key=lambda m: (LAYER_RANK.get(m["layer"], 9), len(m["name"]), m["id"]))
         for method in candidates[:8]:
             ranked.append({"module": module, "method": method})
@@ -560,18 +572,60 @@ def _store_joern(pid, data, docs=None):
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", method_rows)
 
     call_rows = []
+    external_rows = []
     for call in data["calls"]:
         caller = full_index.get(_class_full_name(call["caller"]))
         if not caller:
             continue
         callee = full_index.get(_class_full_name(call["callee"]))
         call_rows.append((pid, caller, call["name"], callee, call["line"]))
+        if callee is None:
+            raw = call.get("callee") or ""
+            simple = _class_full_name(raw).rsplit(".", 1)[-1]
+            if simple and not simple.startswith("<") and simple not in full_index:
+                kind = _external_kind(raw)
+                if kind != "第三方库":  # 只留能归类的基础设施调用，JDK 类型不算外部依赖
+                    external_rows.append((simple, kind))
     db.execute_many("INSERT INTO calls(project_id, caller_id, callee_name, callee_id, line) "
                     "VALUES(?,?,?,?,?)", call_rows)
+    _store_externals(pid, external_rows)
 
     counts = data["counts"]
     edges = data["edges"]
     return len(rows), len(method_rows), len(call_rows)
+
+
+EXTERNAL_KINDS = (
+    (("redis", "lettuce", "jedis"), "缓存"),
+    (("kafka", "rabbit", "rocketmq", "amqp", "pulsar", "mq"), "消息"),
+    (("feign", "ribbon", "httpclient", "resttemplate", "okhttp", "webclient"), "远程调用"),
+    (("oss", "minio", "s3", "cos", "obs"), "对象存储"),
+    (("mail", "sms", "push"), "通知"),
+    (("mybatis", "mapper", "jdbc", "datasource", "sqlsession"), "数据访问"),
+)
+
+
+def _external_kind(text):
+    """按包名/类名的整段前缀判断，避免 nacos 里的 cos、constant 里的 st 之类的误命中。"""
+    parts = re.split(r"[.\s:/()<>\[\],$]+", (text or "").lower())
+    for tokens, kind in EXTERNAL_KINDS:
+        for token in tokens:
+            if any(part == token or part.startswith(token) for part in parts):
+                return kind
+    return "第三方库"
+
+
+def _store_externals(pid, rows):
+    """rows: [(name, kind)]，按名字聚合计数后入库。"""
+    if not rows:
+        return
+    counter = {}
+    for name, kind in rows:
+        key = (name, kind)
+        counter[key] = counter.get(key, 0) + 1
+    values = [(pid, name, kind, count) for (name, kind), count in
+              sorted(counter.items(), key=lambda item: -item[1])[:40]]
+    db.execute_many("INSERT INTO externals(project_id, name, kind, count) VALUES(?,?,?,?)", values)
 
 
 def _store_fields(pid, scan):

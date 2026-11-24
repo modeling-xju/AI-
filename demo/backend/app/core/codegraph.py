@@ -527,8 +527,12 @@ def _in_degree(by_id, out_edges):
     return degree
 
 
-def impact(pid, class_id):
-    """沿调用图反向 BFS：谁调用了它，谁又调用了那些人。"""
+def impact(pid, class_id, method=None):
+    """沿调用图反向 BFS：谁调用了它，谁又调用了那些人。
+
+    给了 method 时，第一跳只保留「确实调用了这个方法」的类；再往上仍按类级调用扩散
+    （调用表只记到类，方法级再往上的精度并不存在）。
+    """
     classes = db.query("SELECT id, name, layer, module_id FROM classes WHERE project_id=?", (pid,))
     by_id = {row["id"]: row for row in classes}
     if class_id not in by_id:
@@ -543,6 +547,18 @@ def impact(pid, class_id):
     dist = {class_id: 0}
     parent = {}
     queue = [class_id]
+    if method:
+        first = [row["caller_id"] for row in db.query(
+            "SELECT DISTINCT caller_id FROM calls WHERE project_id=? AND callee_id=? "
+            "AND callee_name=?", (pid, class_id, method))]
+        queue = []
+        for caller in sorted(set(first)):
+            if caller in seen:
+                continue
+            seen.add(caller)
+            dist[caller] = 1
+            parent[caller] = class_id
+            queue.append(caller)
     while queue:
         current = queue.pop(0)
         for caller in sorted(reverse.get(current, ())):
@@ -579,7 +595,8 @@ def impact(pid, class_id):
         chains.append([node(n) for n in path])
 
     return {
-        "origin": {"id": origin["id"], "name": origin["name"], "layer": origin["layer"]},
+        "origin": {"id": origin["id"], "name": origin["name"], "layer": origin["layer"],
+                   "method": method or ""},
         "classes": [{**node(n), "hop": dist[n]} for n in sorted(seen, key=lambda x: (dist[x], x))],
         "chains": chains,
         "max_hop": max(dist.values()) if dist else 0,

@@ -10,6 +10,7 @@ const state = {
   search: { q: '', mode: 'fusion' },
   graph: { op: 'callers', cls: 0, from: '', to: '' },
   impactClass: 0,
+  impactMethod: "",
   docId: 0,
   docKind: '',
   searchSel: 0,
@@ -610,6 +611,12 @@ async function renderArchitecture() {
       ${chain.map((node) => `<span class="chip">${esc(node.name)}</span>`).join('<span class="arrow">→</span>')}
       <span class="muted">（${chain.length} 跳，${esc(chain[chain.length - 1].layer)}）</span></li>`).join('');
 
+  const externals = data.externals || [];
+  const externalHtml = externals.length
+    ? `<p class="chips externals">${externals.map((x) =>
+        `<span class="chip"><b>${esc(x.name)}</b><em>${esc(x.kind)} · ${x.count}</em></span>`).join('')}</p>`
+    : `<p class="muted">没有识别到跨边界的外部依赖调用。</p>`;
+
   const matrix = data.matrix || { layers: [], cells: [] };
   const matrixHead = matrix.layers.map((name) => `<th>${esc(name.replace('层', ''))}</th>`).join('');
   const matrixRows = matrix.layers.map((name, i) => `
@@ -625,6 +632,8 @@ async function renderArchitecture() {
       <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div></section>
     <h2>入口与关键路径</h2>
     <ul class="plain chains">${entries || '<li class="muted">暂无关键路径</li>'}</ul>
+    <h2>外部依赖</h2>
+    ${externalHtml}
     <h2>分层组件</h2>
     <div class="layers">${cols || '<p class="muted">暂无架构视图</p>'}</div>
     <details class="fold">
@@ -847,14 +856,25 @@ async function renderImpact() {
     id: c.id, name: c.name, layer: c.layer, module: moduleName.get(c.module_id) || '',
   })));
   classes.sort((a, b) => (a.module + a.name).localeCompare(b.module + b.name, 'zh'));
+  // 类 → 方法名，供「方法级影响」下拉用；构造方法与编译器生成的方法不列
+  const methodsOf = new Map();
+  (structure.files || []).forEach((f) => (f.classes || []).forEach((c) => {
+    methodsOf.set(c.id, (c.methods || []).map((m) => m.name || '')
+      .filter((n) => n && !n.startsWith('<')).sort((a, b) => a.localeCompare(b)));
+  }));
   if (!state.impactClass && classes.length) {
     state.impactClass = data.project.impact_hot || classes[0].id;
   }
   const options = classes.map((c) =>
     `<option value="${c.id}" ${c.id === state.impactClass ? 'selected' : ''}>${esc(c.module)} / ${esc(c.name)}</option>`).join('');
-  let result = '<p class="muted">选一个类，看改动会波及哪些模块与功能。</p>';
+  let result = `<p class="muted">选一个类或方法，看改动会波及哪些模块与功能。</p>`;
+  const methodNames = methodsOf.get(state.impactClass) || [];
+  if (state.impactMethod && !methodNames.includes(state.impactMethod)) state.impactMethod = "";
+  const methodOptions = ["", ...methodNames].map((name) =>
+    `<option value="${esc(name)}" ${name === state.impactMethod ? "selected" : ""}>${name ? esc(name) : "全部方法（类级影响）"}</option>`).join("");
   if (state.impactClass) {
-    const r = await api(`/api/projects/${state.pid}/impact/${state.impactClass}`);
+    const query = state.impactMethod ? `?method=${encodeURIComponent(state.impactMethod)}` : "";
+    const r = await api(`/api/projects/${state.pid}/impact/${state.impactClass}${query}`);
     const hops = r.max_hop || 0;
     const byHop = Array.from({ length: hops + 1 }, () => []);
     (r.classes || []).forEach((c) => byHop[Math.min(c.hop || 0, hops)].push(c));
@@ -862,8 +882,8 @@ async function renderImpact() {
       <div class="hop-col origin">
         <p class="hop-head">起点 · 1 个类</p>
         <div class="hop-item"><b><a class="jump" href="#/structure?focus=${encodeURIComponent(r.origin.name)}"
-          title="在代码结构中定位">${esc(r.origin.name)}</a></b>
-          <small>${esc(r.origin.layer || '')}</small></div>
+          title="在代码结构中定位">${esc(r.origin.name)}${r.origin.method ? '.' + esc(r.origin.method) : ''}</a></b>
+          <small>${esc(r.origin.layer || '')}${r.origin.method ? ' · 方法级' : ''}</small></div>
       </div>` + (hops === 0
       ? '<div class="hop-col"><p class="hop-head">无调用方</p><div class="hop-item"><small>没有类调用它，改动只影响自身。</small></div></div>'
       : byHop.slice(1).map((list, i) => `
@@ -896,10 +916,19 @@ async function renderImpact() {
   draw(`
     <section class="head"><div><h1>变更影响分析</h1>
       <p class="muted">沿调用图反向查找：改这个类，哪些类、模块与功能要一起验证。</p></div></section>
-    <div class="form-panel inline"><label>起点类<select id="impact-select">${options}</select></label></div>
+    <div class="form-panel inline">
+      <label>起点类<select id="impact-select">${options}</select></label>
+      <label>方法<select id="impact-method">${methodOptions}</select></label>
+    </div>
     ${result}`);
   const sel = document.getElementById('impact-select');
-  if (sel) sel.onchange = (e) => { state.impactClass = Number(e.target.value); renderImpact(); };
+  if (sel) sel.onchange = (e) => {
+    state.impactClass = Number(e.target.value);
+    state.impactMethod = "";
+    renderImpact();
+  };
+  const methodSel = document.getElementById('impact-method');
+  if (methodSel) methodSel.onchange = (e) => { state.impactMethod = e.target.value; renderImpact(); };
 }
 
 /* ------------------------------------------------------------------ 视图：对比 */

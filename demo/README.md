@@ -96,11 +96,11 @@ demo/
 | GET | `/api/projects/{pid}/overview` | 指标、构建方式/语言构成、模块划分、产物计数 |
 | GET | `/api/projects/{pid}/structure` | 文件（分类）→ 类 → 方法（分支/循环/捕获）→ 调用点 |
 | GET | `/api/projects/{pid}/functions` | 功能树（一级模块 + 二级条目） |
-| GET | `/api/projects/{pid}/architecture` | 分层组件、层间依赖矩阵、组件—功能映射、入口关键路径 |
+| GET | `/api/projects/{pid}/architecture` | 分层组件、层间依赖矩阵、组件—功能映射、入口关键路径、外部依赖 |
 | GET | `/api/projects/{pid}/compare` | 模块度、NMI、检索评测 |
 | GET | `/api/projects/{pid}/search?q=&mode=&k=` | `mode=bm25\|keyword\|vector\|fusion` |
 | GET | `/api/projects/{pid}/graph?op=callers\|callees\|path&class=&from=&to=` | 知识库图查询：谁调用它 / 它调用谁 / 两类间最短调用链 |
-| GET | `/api/projects/{pid}/impact/{class_id}` | 变更影响：类 → 模块 → 功能 |
+| GET | `/api/projects/{pid}/impact/{class_id}?method=` | 变更影响：类 → 模块 → 功能；给 `method` 时先只看该方法的调用方 |
 | GET | `/api/projects/{pid}/documents` | 文档列表 |
 | GET | `/api/projects/{pid}/documents/{doc_id}` | 单篇（`html` 为渲染结果） |
 | GET | `/api/projects/{pid}/documents/{doc_id}/export` | 导出 Markdown 附件 |
@@ -154,7 +154,9 @@ demo/
   跳到下方调用链查询；顶部显示命中条数与当前模式，提供「登录 / 订单 / 菜单 / 令牌 / 用户 / 租户」快捷查询；
   未输入时按工程规模给默认查询（小工程「加入购物车」、大工程「登录」）。
 - **系统架构**：分层组件在上，层间依赖矩阵与组件—功能对齐收进两个折叠块，页面高度减半；组件里的类 chip
-  默认显示 8 个，其余折成 `+N` 就地展开。
+  默认显示 8 个，其余折成 `+N` 就地展开；「外部依赖」区块把缓存、消息、对象存储、数据访问库按类型与调用次数列出。
+- **变更影响**：起点可选类或**方法**——选方法时只从该方法的调用方开始扩散；页面上是四个大数字
+  （受影响类 / 波及模块 / 涉及功能 / 最大跳数）、按跳数分栏的扩散视图，以及从最深目标回溯出的示例影响链。
 - **交叉跳转**：功能条目名、影响页的类名、检索详情的类名都可点，跳到结构页并自动过滤、展开、滚动定位到那个类
   （`#/structure?focus=Class.method`，类行高亮 2 秒）。
 - **失败重试**：视图加载出错时给「重试」（只重跑当前视图）与「刷新页面」两个选项。
@@ -193,7 +195,10 @@ LLM_MODEL=gpt-4o-mini
   接口按向量检索的形状写，接入真实 embedding 时替换 `_build_vectors` / `_vector_scores`；
 - 检索评测的查询集由功能条目构造，融合通道会经「功能条目 → 证据方法」一跳，因此在该集合上领先；
   换成人写提问，各通道差距会收窄；SpringBlade 这类注释稀疏的工程里，方法文档会用方法名推的中文
-  别名补全，检索指标因此比带 javadoc 的工程低（83 条查询：融合 51.8%、关键词 48.2%、向量 39.8%、BM25 38.6%）；
+  别名补全，检索指标因此比带 javadoc 的工程低（73 条查询：融合 65.8%、关键词 50.7%、向量 35.6%、BM25 32.9%）；
+- 外部依赖按包名/类名的整段前缀归类（缓存、消息、对象存储、数据访问等），是启发式规则，
+  第三方通用库会被归到「数据访问」或直接忽略；工具类（`*Util/*Utils/*Helper/*Constant`）下的方法
+  不计入功能条目，因此工具类的方法不会出现在功能树里；
 - Git 接入是「克隆 / 拉取」级别的增量，不做提交级差分；
 - 检索索引按「计数 + 最大行号」判过期：在别的进程里重跑分析后，服务端下一次检索会自动重建，
   不需要重启；`/api/projects/{id}/status` 的 `index_stale` 会给出当前状态；

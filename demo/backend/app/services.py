@@ -193,7 +193,11 @@ def architecture(pid):
     return {"layers": ordered,
             "matrix": _layer_matrix(pid),
             "component_functions": _component_functions(pid),
-            "entries": codegraph.critical_paths(pid, limit=3)}
+            "entries": codegraph.critical_paths(pid, limit=3),
+            "externals": [{"name": row["name"], "kind": row["kind"], "count": row["count"]}
+                          for row in db.query(
+                              "SELECT name, kind, count FROM externals WHERE project_id=? "
+                              "ORDER BY count DESC LIMIT 10", (pid,))]}
 
 
 def _layer_matrix(pid):
@@ -296,9 +300,9 @@ def search(pid, query, mode="bm25", k=10):
     return retrieve.search(pid, query, mode=mode, k=k)
 
 
-def impact(pid, class_id):
+def impact(pid, class_id, method=None):
     _project(pid)
-    result = codegraph.impact(pid, int(class_id))
+    result = codegraph.impact(pid, int(class_id), method or None)
     if not result:
         raise NotFound("类 %s 不存在" % class_id)
     return result

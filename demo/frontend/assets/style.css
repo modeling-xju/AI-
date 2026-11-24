@@ -626,3 +626,8 @@ details.hl > summary { border-radius: 3px; }
 .fields { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px 18px; }
 .chip.field { color: var(--muted); }
 .chip.field b { color: var(--ink); font-weight: 600; }
+
+/* 外部依赖 chip：名字 + 类型与次数 */
+.chips.externals { margin: 2px 0 6px; }
+.chips.externals .chip { gap: 6px; }
+.chips.externals .chip em { font-style: normal; color: var(--faint); }
