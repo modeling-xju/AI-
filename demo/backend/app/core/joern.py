@@ -176,15 +176,15 @@ def analyze(root, workdir, port=None, keep_server=False):
         calls = query_str(port, "cpg.call", "c", [
             "c.method.fullName", "c.name", "c.methodFullName",
             "c.lineNumber.getOrElse(0)", "c.method.filename"], timeout=1800)
+        # 边一律按「整图某个标签的边」来数，口径统一；DDG 由数据流引擎按需计算，
+        # 图里不落盘（cpg.all.out("DDG") 为 0），所以单独用 ddgIn 取。
         edges = {
-            "ast": query_int(port, "cpg.method.ast.size"),
-            "cfg": query_int(port, "cpg.call.cfgNext.size"),
-            "cdg": query_int(port, "cpg.call.cdgOut.size"),
+            "ast": query_int(port, 'cpg.all.out("AST").size'),
+            "call": query_int(port, 'cpg.all.out("CALL").size'),
+            "cfg": query_int(port, 'cpg.all.out("CFG").size'),
+            "cdg": query_int(port, 'cpg.all.out("CDG").size'),
             "ddg": query_int(port, "cpg.call.ddgIn.size"),
-            "ref": (query_int(port, "cpg.member.size")
-                    + query_int(port, "cpg.parameter.size")
-                    + query_int(port, "cpg.method.methodReturn.size")
-                    + query_int(port, "cpg.typeDecl.inheritsFromTypeFullName.size")),
+            "ref": query_int(port, 'cpg.all.out("REF").size'),
         }
     finally:
         if not keep_server:

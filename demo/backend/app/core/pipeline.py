@@ -483,12 +483,12 @@ def _store_cpg_metrics(pid, data):
                     [(pid, key, label, value, note) for key, label, value, note in [
                         ("cpg_nodes", "属性图节点", counts["all"], "Joern CPG 节点总数"),
                         ("cpg_edges", "属性图边", sum(edges.values()), "AST/CALL/CFG/CDG/DDG/REF"),
-                        ("cpg_ast", "AST 边", edges["ast"], "方法到语句的包含关系"),
-                        ("cpg_call", "CALL 边", counts["call"], "调用点指到被调用方法"),
+                        ("cpg_ast", "AST 边", edges["ast"], "类型/方法到其子节点的包含关系"),
+                        ("cpg_call", "CALL 边", edges["call"], "调用点指到被调用方法"),
                         ("cpg_cfg", "CFG 边", edges["cfg"], "方法内语句的执行先后"),
                         ("cpg_cdg", "CDG 边", edges["cdg"], "分支对语句的控制依赖"),
-                        ("cpg_ddg", "DDG 边", edges["ddg"], "变量定义到使用"),
-                        ("cpg_ref", "实体引用边", edges["ref"], "继承/字段/参数/返回值"),
+                        ("cpg_ddg", "DDG 边", edges["ddg"], "变量定义到使用（数据流引擎按需计算）"),
+                        ("cpg_ref", "REF 边", edges["ref"], "标识符/调用/方法引用指向声明"),
                     ]])
     db.execute("UPDATE projects SET graph_nodes=?, graph_edges=? WHERE id=?",
                (counts["all"], sum(edges.values()), pid))
