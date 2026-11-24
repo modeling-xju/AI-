@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --ink: #0d1117; --muted: #55585c; --faint: #6f757a;
+    --line: #d8dde2; --soft: #f2f6fa; --primary: #0074c9; --cyan: #24a8d8;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 44px 48px 40px; width: 1400px; background: #fbfcfd;
+    color: var(--ink); font: 400 14px/1.5 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background-image: radial-gradient(#e2e7eb 1px, transparent 1px); background-size: 22px 22px;
+  }
+  .kicker { font: 500 11px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--primary); display: flex; align-items: center; gap: 8px; }
+  .kicker i { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); display: inline-block; }
+  h1 { margin: 14px 0 6px; font-size: 40px; line-height: 1.1; letter-spacing: -.03em; font-weight: 700; }
+  .sub { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .sub code { font: 500 12.5px/1 var(--mono); color: var(--primary); }
+
+  .band { margin-top: 26px; }
+  .band-head { display: flex; align-items: baseline; justify-content: space-between;
+    border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 12px; }
+  .band-head b { font-size: 14px; font-weight: 650; }
+  .band-head span { font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+
+  .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .mod { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 12px 12px 11px;
+    position: relative; }
+  .mod em { display: block; font: 500 10px/1 var(--mono); letter-spacing: .12em; color: var(--primary);
+    font-style: normal; margin-bottom: 6px; }
+  .mod b { display: block; font-size: 13px; line-height: 1.3; }
+  .mod p { margin: 7px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .mod ul { margin: 7px 0 0; padding-left: 14px; font-size: 11px; color: var(--faint); line-height: 1.5; }
+  .mod .out { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--line);
+    font: 400 10.5px/1.4 var(--mono); color: var(--faint); }
+  .arrow-right { position: absolute; right: -9px; top: 50%; color: #b9c0c6; font-size: 12px; }
+
+  .cols { display: grid; grid-template-columns: 1.32fr 1fr; gap: 16px; }
+  .card { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 14px 16px 15px; }
+  .card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 650; display: flex; justify-content: space-between;
+    align-items: baseline; }
+  .card h3 span { font: 500 10px/1 var(--mono); letter-spacing: .12em; color: var(--faint); text-transform: uppercase; }
+  .files { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px 14px; }
+  .files div { font-size: 11.5px; color: var(--muted); }
+  .files code { font: 500 11.5px/1 var(--mono); color: var(--ink); margin-right: 6px; }
+  .tables { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tables span { font: 400 10.5px/1.6 var(--mono); border: 1px solid var(--line); border-radius: 3px;
+    padding: 2px 7px; color: var(--muted); background: #fdfdfe; }
+  .note { margin-top: 12px; font-size: 11.5px; color: var(--faint); line-height: 1.6; }
+  .note b { color: var(--ink); font-weight: 600; }
+  .views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .views span { border: 1px solid var(--line); border-radius: 3px; padding: 5px 6px; text-align: center;
+    font-size: 11.5px; color: var(--muted); background: #fff; }
+  .foot { display: flex; justify-content: space-between; margin-top: 22px; padding-top: 10px;
+    border-top: 1px solid var(--line); font: 500 10px/1.6 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+  <p class="kicker"><i></i>SYSTEM ARCHITECTURE · AI-ENABLED REVERSE ENGINEERING</p>
+  <h1>系统总体架构</h1>
+  <p class="sub">代码 → 结构 → 知识 → 需求与架构 → 文档；每条结论都能回到 <code>文件:行号</code></p>
+
+  <section class="band">
+    <div class="band-head"><b>六模块流水线</b><span>pipeline · core/pipeline.py</span></div>
+    <div class="flow">
+      <div class="mod"><em>01 · INPUT</em><b>仓库接入与预处理</b>
+        <p>Git 克隆 / 增量拉取、本地目录、zip；构建方式与语言构成识别</p>
+        <div class="out">→ 工程快照</div><span class="arrow-right">→</span></div>
+      <div class="mod"><em>02 · PARSE</em><b>代码结构解析</b>
+        <p>Joern CPG 或自研解析器；调用图与 AST/CFG/CDG/DDG/REF</p>
+        <div class="out">→ 结构化事实</div><span class="arrow-right">→</span></div>
+      <div class="mod"><em>03 · KNOWLEDGE</em><b>代码知识库</b>
+        <p>SQLite 入库；图查询（调用方/被调方/路径）与 BM25·向量·融合检索</p>
+        <div class="out">→ 可检索索引</div><span class="arrow-right">→</span></div>
+      <div class="mod"><em>04 · RECOVERY</em><b>功能需求恢复</b>
+        <p>Louvain 社区发现 + 大模型/规则命名，按层级组织功能树</p>
+        <div class="out">→ 带证据功能树</div><span class="arrow-right">→</span></div>
+      <div class="mod"><em>05 · ARCHITECTURE</em><b>系统架构恢复</b>
+        <p>分层、层间依赖矩阵、关键路径、组件—功能对齐、变更影响</p>
+        <div class="out">→ 架构视图</div><span class="arrow-right">→</span></div>
+      <div class="mod"><em>06 · DOCS</em><b>文档生成</b>
+        <p>接口文档、用户手册、完整报告；条目带源码行号，可导出</p>
+        <div class="out">→ 三份交付文档</div></div>
+    </div>
+  </section>
+
+  <section class="band cols">
+    <div class="card">
+      <h3>算法层 core/<span>pure functions + read-only db</span></h3>
+      <div class="files">
+        <div><code>repo.py</code>克隆、构建识别、文件分类</div>
+        <div><code>javaparse.py</code>类/方法/调用点与结构摘要</div>
+        <div><code>joern.py</code>CPG 生成、CPGQL 抽取</div>
+        <div><code>cpg.py</code>自研属性图六类边</div>
+        <div><code>codegraph.py</code>调用图、Louvain、影响、关键路径</div>
+        <div><code>knowledge.py</code>模块命名、功能摘要</div>
+        <div><code>retrieve.py</code>BM25 / 向量 / 融合 + 评测</div>
+        <div><code>docs.py</code>接口文档 / 手册 / 报告</div>
+      </div>
+      <p class="note"><b>双引擎</b>：<code>joern</code> 直接读 Joern 的 CPG，<code>self</code> 走自研解析器与
+        <code>cpg.py</code>；两者写出同一套表，下游算法与页面不感知差异。</p>
+    </div>
+    <div class="card">
+      <h3>存储<span>sqlite3 · demo/data/reverse.db</span></h3>
+      <div class="tables">
+        <span>projects</span><span>files</span><span>classes</span><span>methods</span>
+        <span>calls</span><span>modules</span><span>functions</span><span>components</span>
+        <span>documents</span><span>metrics</span>
+      </div>
+      <p class="note"><b>证据链</b>落在表里：功能条目存 <code>Class.method</code>，模块存类集合，
+        组件存依赖，文档正文带行号引用。</p>
+    </div>
+  </section>
+
+  <section class="band cols">
+    <div class="card">
+      <h3>接口层 FastAPI<span>backend/app/routers</span></h3>
+      <div class="files">
+        <div><code>projects.py</code>接入 / 上传 / 分析 / 状态 / 删除</div>
+        <div><code>analysis.py</code>结构 / 功能 / 架构 / 对比 / 影响</div>
+        <div><code>search.py</code>检索 + 调用链图查询</div>
+        <div><code>docs_api.py</code>生成 / 预览 / 导出</div>
+      </div>
+      <p class="note"><code>services.py</code> 是唯一出口，前端不直连数据库。</p>
+    </div>
+    <div class="card">
+      <h3>展示层<span>frontend · 原生 HTML/JS</span></h3>
+      <div class="views">
+        <span>总览</span><span>代码结构</span><span>功能需求</span><span>系统架构</span>
+        <span>语义检索</span><span>变更影响</span><span>评测对比</span><span>文档生成</span>
+      </div>
+      <p class="note">无构建、无框架：静态资源由 FastAPI 挂载，<code>/api/*</code> 取 JSON。</p>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>SPRINGBLADE · 253 CLASSES · 933 METHODS · 38397 CPG NODES · 75 FUNCTIONS</span>
+    <span>PYTHON 3.12 · FASTAPI · SQLITE · JOERN 4.0.690</span>
+  </div>
+</body>
+</html>

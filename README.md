@@ -7,6 +7,11 @@
 系统把「结构事实」与「语义归纳」分开：结构一侧用代码属性图（CPG）与调用图给出可核查的事实，
 语义一侧用大模型（可缺省为规则）在结构约束下做命名与归纳，**每条结论都能回指到具体的类、方法、行号**。
 
+![总览](demo/docs/img/overview.png)
+
+六个视图的截图与说明见 [`demo/docs/系统框架设计.md` 第 10 节](demo/docs/系统框架设计.md)，
+总体架构图见 [`demo/docs/img/architecture-overview.png`](demo/docs/img/architecture-overview.png)。
+
 ## 目录
 
 | 路径 | 说明 |
