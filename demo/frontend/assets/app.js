@@ -107,7 +107,7 @@ function shell(body) {
         ).join('')}</select>
       </label>
       <button class="ghost" id="btn-new">接入新工程</button>
-      <button class="ghost" id="btn-upload">上传 zip</button>
+      <button class="ghost" id="btn-manage">工程管理</button>
       ${state.pid ? `<button class="primary" id="btn-analyze">重新分析</button>` : ''}
       <div id="progress" class="progress" hidden><div class="bar"></div><span></span></div>
     </div>
@@ -123,9 +123,9 @@ function bindProjectBar(rerender) {
     rerender();
   };
   const nw = document.getElementById('btn-new');
-  if (nw) nw.onclick = () => showNewProjectForm(rerender);
-  const up = document.getElementById('btn-upload');
-  if (up) up.onclick = () => pickZip(rerender);
+  if (nw) nw.onclick = () => openImport(rerender);
+  const mg = document.getElementById('btn-manage');
+  if (mg) mg.onclick = () => openManage(rerender);
   const an = document.getElementById('btn-analyze');
   if (an) an.onclick = () => startAnalyze(state.pid, rerender);
 }
@@ -173,64 +173,260 @@ async function startAnalyze(pid, rerender) {
 }
 
 /* ------------------------------------------------------------------ 接入工程 */
-function showNewProjectForm(rerender) {
-  const body = `
-    <h1>接入新工程</h1>
-    <p class="muted">三种接入方式：填服务器上的 Java 目录，或填 Git 地址由后端克隆；也可以直接上传 zip。</p>
-    <div class="panel form-panel">
-      <label>项目名称<input id="f-name" placeholder="如 minishop"></label>
-      <label>服务器目录<input id="f-root" placeholder="D:\\...\\demo\\samples\\minishop"></label>
-      <label>Git 地址（填了它就不用填目录）<input id="f-git" placeholder="https://github.com/owner/repo.git"></label>
-      <label>解析引擎
-        <select id="f-engine">
-          <option value="self">自研解析器（零依赖，秒级）</option>
-          <option value="joern">Joern CPG（真 CPG，首次解析较慢）</option>
-        </select>
-      </label>
-      <button class="primary" id="f-submit">开始分析</button>
-    </div>`;
-  $app.innerHTML = body;
-  document.getElementById('f-submit').onclick = async () => {
-    const name = document.getElementById('f-name').value.trim();
-    const root = document.getElementById('f-root').value.trim();
-    const gitUrl = document.getElementById('f-git').value.trim();
-    const engine = document.getElementById('f-engine').value;
-    if (!gitUrl && (!name || !root)) { toast('填 Git 地址，或填名称与目录'); return; }
+/* ------------------------------------------------------------------ 弹窗：接入 / 管理 */
+const $modal = document.getElementById('modal');
+
+function openModal(html) {
+  $modal.innerHTML = `<div class="modal-card">${html}</div>`;
+  $modal.hidden = false;
+  document.body.classList.add('modal-open');
+  $modal.querySelectorAll('[data-close]').forEach((el) => { el.onclick = closeModal; });
+  return $modal.querySelector('.modal-card');
+}
+
+function closeModal() {
+  $modal.hidden = true;
+  $modal.innerHTML = '';
+  document.body.classList.remove('modal-open');
+}
+
+$modal.addEventListener('click', (event) => { if (event.target === $modal) closeModal(); });
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$modal.hidden) closeModal();
+});
+
+const ENGINE_OPTIONS = `
+  <option value="self">自研解析器（零依赖，秒级）</option>
+  <option value="joern">Joern CPG（真 CPG，首次解析较慢）</option>`;
+
+function openImport(rerender) {
+  const card = openModal(`
+    <div class="modal-head"><h3>接入新工程</h3>
+      <button class="modal-close" data-close aria-label="关闭">×</button></div>
+    <p class="muted small">三种方式都留在当前页：克隆仓库、选服务器目录或上传本地文件夹、丢一个 zip。</p>
+    <div class="tabs" data-tabs>
+      <button data-tab="git" class="on">Git 仓库</button>
+      <button data-tab="local">本地目录</button>
+      <button data-tab="zip">压缩包</button>
+    </div>
+    <div class="form-panel">
+      <div data-pane="git">
+        <label>仓库地址<input id="f-git" placeholder="https://gitee.com/owner/repo.git"></label>
+        <label>工程名称（留空取仓库名）<input id="f-git-name" placeholder="SpringBlade"></label>
+      </div>
+      <div data-pane="local" hidden>
+        <label>服务器上的目录<input id="f-root" placeholder="D:\\work\\java-project"></label>
+        <div class="row">
+          <button class="ghost" id="f-browse">浏览目录</button>
+          <button class="ghost" id="f-folder">上传本地文件夹</button>
+          <span class="muted small" id="f-fs-path"></span>
+        </div>
+        <div class="fs-list" id="f-fs" hidden></div>
+        <input type="file" id="f-files" webkitdirectory directory multiple hidden>
+      </div>
+      <div data-pane="zip" hidden>
+        <div class="drop" id="f-drop">把 zip 拖到这里，或点击选择文件</div>
+        <p class="muted small" id="f-zip-name">支持 .zip，解压后自动筛出 Java 源码。</p>
+        <input type="file" id="f-zip" accept=".zip" hidden>
+      </div>
+      <label>解析引擎<select id="f-engine">${ENGINE_OPTIONS}</select></label>
+      <div class="row" style="justify-content:flex-end; margin-top:6px">
+        <button class="ghost" data-close>取消</button>
+        <button class="primary" id="f-submit">开始分析</button>
+      </div>
+    </div>`);
+
+  let tab = 'git';
+  let zipFile = null;
+  const panes = card.querySelectorAll('[data-pane]');
+  card.querySelectorAll('[data-tab]').forEach((button) => {
+    button.onclick = () => {
+      tab = button.dataset.tab;
+      card.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b === button));
+      panes.forEach((pane) => { pane.hidden = pane.dataset.pane !== tab; });
+    };
+  });
+
+  // 服务器目录浏览
+  const fsBox = card.querySelector('#f-fs');
+  const fsPath = card.querySelector('#f-fs-path');
+  async function browse(path, selectable) {
     try {
-      const data = await api('/api/projects', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, root, git_url: gitUrl, engine }),
+      const data = await api(`/api/fs/list?path=${encodeURIComponent(path || '')}`);
+      fsBox.hidden = false;
+      fsPath.textContent = data.path;
+      const rows = [];
+      if (data.parent) rows.push(`<div class="fs-row" data-path="${esc(data.parent)}"><span>..</span><span class="muted">上级</span></div>`);
+      data.entries.filter((e) => e.is_dir).slice(0, 80).forEach((entry) => {
+        rows.push(`<div class="fs-row" data-path="${esc(entry.path)}"><span>${esc(entry.name)}/</span>
+          <span class="muted">进入</span></div>`);
       });
-      state.pid = data.id;
-      localStorage.setItem('pid', state.pid);
-      await loadProjects();
-      startAnalyze(state.pid, rerender);
-      rerender();
+      if (selectable) {
+        rows.unshift(`<div class="fs-row" data-pick="${esc(data.path)}"><b>用这个目录</b>
+          <span class="muted">${esc(data.path)}</span></div>`);
+      }
+      fsBox.innerHTML = rows.join('') || '<div class="fs-row"><span class="muted">没有子目录</span></div>';
+      fsBox.querySelectorAll('[data-path]').forEach((row) => {
+        row.onclick = () => browse(row.dataset.path, true);
+      });
+      fsBox.querySelectorAll('[data-pick]').forEach((row) => {
+        row.onclick = () => {
+          card.querySelector('#f-root').value = row.dataset.pick;
+          fsPath.textContent = row.dataset.pick;
+          fsBox.hidden = true;
+        };
+      });
+    } catch (err) { toast(err.message); }
+  }
+  card.querySelector('#f-browse').onclick = () => {
+    browse(card.querySelector('#f-root').value.trim(), true);
+  };
+
+  // 本地文件夹上传（浏览器选目录，按相对路径传到服务器）
+  const filesInput = card.querySelector('#f-files');
+  card.querySelector('#f-folder').onclick = () => filesInput.click();
+  filesInput.onchange = async () => {
+    const files = [...filesInput.files];
+    if (!files.length) return;
+    const rootName = (files[0].webkitRelativePath || files[0].name).split('/')[0] || 'upload';
+    const form = new FormData();
+    const paths = [];
+    files.forEach((file) => {
+      const rel = (file.webkitRelativePath || file.name).split('/').slice(1).join('/') || file.name;
+      paths.push(rel);
+      form.append('files', file);
+    });
+    form.append('paths', JSON.stringify(paths));
+    form.append('name', rootName);
+    form.append('engine', card.querySelector('#f-engine').value);
+    toast(`上传 ${files.length} 个文件…`);
+    try {
+      const data = await api('/api/projects/upload-files', { method: 'POST', body: form });
+      await finishCreate(data.id, rerender);
+    } catch (err) { toast(err.message); }
+  };
+
+  // zip 拖放
+  const drop = card.querySelector('#f-drop');
+  const zipInput = card.querySelector('#f-zip');
+  drop.onclick = () => zipInput.click();
+  zipInput.onchange = () => {
+    zipFile = zipInput.files[0] || null;
+    card.querySelector('#f-zip-name').textContent = zipFile ? zipFile.name : '未选择';
+  };
+  ['dragover', 'dragenter'].forEach((type) => drop.addEventListener(type, (event) => {
+    event.preventDefault(); drop.classList.add('hot');
+  }));
+  ['dragleave', 'drop'].forEach((type) => drop.addEventListener(type, () => drop.classList.remove('hot')));
+  drop.addEventListener('drop', (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    zipFile = file;
+    card.querySelector('#f-zip-name').textContent = file.name;
+  });
+
+  card.querySelector('#f-submit').onclick = async () => {
+    const engine = card.querySelector('#f-engine').value;
+    try {
+      if (tab === 'git') {
+        const url = card.querySelector('#f-git').value.trim();
+        if (!url) { toast('先填仓库地址'); return; }
+        const data = await api('/api/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: card.querySelector('#f-git-name').value.trim(),
+            git_url: url, engine }),
+        });
+        await finishCreate(data.id, rerender);
+        return;
+      }
+      if (tab === 'local') {
+        const root = card.querySelector('#f-root').value.trim();
+        if (!root) { toast('填目录，或点「浏览目录」'); return; }
+        const data = await api('/api/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: root.split(/[\\/]/).filter(Boolean).pop() || 'project',
+            root, engine }),
+        });
+        await finishCreate(data.id, rerender);
+        return;
+      }
+      if (!zipFile) { toast('先选一个 zip'); return; }
+      const form = new FormData();
+      form.append('file', zipFile);
+      form.append('name', zipFile.name.replace(/\.zip$/i, ''));
+      form.append('engine', engine);
+      toast('上传中…');
+      const data = await api('/api/projects/upload', { method: 'POST', body: form });
+      await finishCreate(data.id, rerender);
     } catch (err) { toast(err.message); }
   };
 }
 
-function pickZip(rerender) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.zip';
-  input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('name', file.name.replace(/\.zip$/i, ''));
-    toast('上传中…');
-    try {
-      const data = await api('/api/projects/upload', { method: 'POST', body: fd });
-      state.pid = data.id;
-      localStorage.setItem('pid', state.pid);
-      await loadProjects();
-      startAnalyze(state.pid, rerender);
-      rerender();
-    } catch (err) { toast(err.message); }
-  };
-  input.click();
+async function finishCreate(pid, rerender) {
+  closeModal();
+  state.pid = pid;
+  localStorage.setItem('pid', pid);
+  await loadProjects();
+  startAnalyze(pid, rerender);
+  rerender();
+}
+
+function openManage(rerender) {
+  const card = openModal(`
+    <div class="modal-head"><h3>工程管理</h3>
+      <button class="modal-close" data-close aria-label="关闭">×</button></div>
+    <p class="muted small">切换、重新分析、把源码打包下载；文件级下载在「代码结构」里逐个给。</p>
+    <div id="manage-body"><p class="muted small">加载中…</p></div>`);
+  const body = card.querySelector('#manage-body');
+
+  async function paint() {
+    const [data, files] = await Promise.all([
+      api('/api/projects'),
+      state.pid ? api(`/api/projects/${state.pid}/files`).catch(() => ({ files: [] })) : { files: [] },
+    ]);
+    state.projects = data.projects || [];
+    const rows = state.projects.map((p) => `
+      <tr>
+        <td><b>${esc(p.name)}</b><br><span class="mono small">${esc(p.engine === 'joern' ? 'Joern CPG' : '自研解析器')}</span></td>
+        <td>${STATUS_LABEL[p.status] || esc(p.status)}</td>
+        <td class="mono">${p.class_count || 0} 类 / ${p.method_count || 0} 方法</td>
+        <td class="acts">
+          <button class="ghost" data-switch="${p.id}" ${p.id === state.pid ? 'disabled' : ''}>切换</button>
+          <a class="btn ghost" href="/api/projects/${p.id}/export.zip" download>下载 zip</a>
+          <button class="ghost" data-delete="${p.id}">删除</button>
+        </td>
+      </tr>`).join('');
+    body.innerHTML = `
+      <table class="project-list"><thead><tr><th>工程</th><th>状态</th><th>规模</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" class="muted">还没有工程</td></tr>'}</tbody></table>
+      <p class="rail-label">当前工程的源码（${(files.files || []).length} 个文件）</p>
+      ${state.pid ? `<p><a class="btn" href="/api/projects/${state.pid}/export.zip" download>下载整个工程 zip</a></p>` : ''}
+      <div class="fs-list" style="max-height:240px">
+        ${(files.files || []).map((file) => `<div class="fs-row">
+          <span class="mono small">${esc(file.path)}</span>
+          <a class="link" href="/api/projects/${state.pid}/files/${file.id}/download" download>下载</a>
+        </div>`).join('') || '<div class="fs-row"><span class="muted">分析完成后这里会列出源码文件</span></div>'}
+      </div>`;
+    body.querySelectorAll('[data-switch]').forEach((button) => {
+      button.onclick = () => {
+        state.pid = Number(button.dataset.switch);
+        localStorage.setItem('pid', state.pid);
+        closeModal(); rerender();
+      };
+    });
+    body.querySelectorAll('[data-delete]').forEach((button) => {
+      button.onclick = async () => {
+        const pid = Number(button.dataset.delete);
+        if (!window.confirm('删除这个工程及其分析结果？')) return;
+        await api(`/api/projects/${pid}`, { method: 'DELETE' });
+        await loadProjects();
+        if (state.pid === pid) state.pid = state.projects[0] ? state.projects[0].id : 0;
+        await paint(); rerender();
+      };
+    });
+  }
+  paint().catch((err) => { body.innerHTML = `<p class="muted">${esc(err.message)}</p>`; });
 }
 
 /* ------------------------------------------------------------------ 视图：总览 */
@@ -430,7 +626,7 @@ function structureHtml(data, query, expand) {
 async function renderStructure() {
   // 别的页面点「Class.method」跳过来时带 focus 参数，直接填进过滤框并定位
   const focus = (currentRoute().query.get('focus') || '').trim();
-  if (focus) STRUCT.query = focus;
+  if (focus) { STRUCT.query = focus; VIEW.structure = 'list'; }
   const data = await api(`/api/projects/${state.pid}/structure`);
   const graph = data.graph || {};
   const graphLine = graph.nodes
@@ -443,8 +639,9 @@ async function renderStructure() {
     <section class="head"><div><h1>代码结构</h1>
       <p class="muted">源码解析结果：${data.classes_total} 个类、${data.methods_total} 个方法、${data.calls_total} 个调用点。
       按目录分组，点开目录 → 文件 → 类 → 方法逐层钻取。</p>
-      ${graphLine ? `<p class="meta"><span>${graphLine}</span></p>` : ''}</div></section>
-    <div class="toolbar">
+      ${graphLine ? `<p class="meta"><span>${graphLine}</span></p>` : ''}</div>
+      ${viewToggle('structure')}</section>
+    <div class="toolbar" id="struct-toolbar" ${VIEW.structure === 'map' ? 'hidden' : ''}>
       <input id="struct-q" class="grow" value="${esc(STRUCT.query)}"
         placeholder="按路径、包名或类名过滤，例如 controller、User、OrderService">
       <button class="ghost" id="struct-reset">清空</button>
@@ -456,6 +653,19 @@ async function renderStructure() {
 
   const box = document.getElementById('struct-files');
   const counter = document.getElementById('struct-count');
+  bindViewToggle('structure', () => renderStructure());
+
+  if (VIEW.structure === 'map') {
+    box.appendChild(window.viz.structureMap(data, {
+      onFocusFile: (path) => {
+        VIEW.structure = 'list';
+        STRUCT.query = path;
+        renderStructure();
+      },
+    }));
+    return;
+  }
+
   const paint = () => {
     const groups = structureGroups(data, STRUCT.query);
     const files = groups.reduce((sum, [, list]) => sum + list.length, 0);
@@ -507,6 +717,27 @@ async function renderStructure() {
   }
 }
 
+/* ------------------------------------------------------------------ 视图切换 */
+const VIEW = { structure: 'map', functions: 'map', architecture: 'map', impact: 'map' };
+
+function viewToggle(key) {
+  return `<div class="seg" data-toggle="${key}">
+    <button data-mode="map" class="${VIEW[key] === 'map' ? 'on' : ''}">图谱</button>
+    <button data-mode="list" class="${VIEW[key] === 'list' ? 'on' : ''}">列表</button>
+  </div>`;
+}
+
+function bindViewToggle(key, rerender) {
+  const box = document.querySelector(`[data-toggle="${key}"]`);
+  if (!box) return;
+  box.querySelectorAll('[data-mode]').forEach((button) => {
+    button.onclick = () => {
+      VIEW[key] = button.dataset.mode;
+      rerender();
+    };
+  });
+}
+
 /* ------------------------------------------------------------------ 视图：功能 */
 /**
  * 功能条目：说明里通常已含「入口 Class.method」，重复的证据不再单独占一行，
@@ -550,8 +781,8 @@ async function renderFunctions() {
   draw(`
     <section class="head"><div><h1>功能需求恢复</h1>
       <p class="muted">一级为模块功能，二级为可核对到方法的原子功能；每条都标了实现位置。</p></div>
-      <span class="badge ok">${data.leaf_count} 条</span></section>
-    <div class="toolbar">
+      <div class="row">${viewToggle('functions')}<span class="badge ok">${data.leaf_count} 条</span></div></section>
+    <div class="toolbar" ${VIEW.functions === 'map' ? 'hidden' : ''}>
       <input id="fn-q" class="grow" value="${esc(FUNCS.query)}"
         placeholder="按功能名、说明或证据方法过滤，例如 登录、订单、UserController">
       <button class="ghost" id="fn-reset">清空</button>
@@ -562,6 +793,21 @@ async function renderFunctions() {
     <div id="fn-list"></div>`);
 
   const box = document.getElementById('fn-list');
+  bindViewToggle('functions', () => renderFunctions());
+  if (VIEW.functions === 'map') {
+    box.appendChild(window.viz.functionMap(data, {
+      onFocus: (evidence) => {
+        const target = String(evidence || '').split(/[（(]/)[0].trim();
+        location.hash = `#/structure?focus=${encodeURIComponent(target)}`;
+      },
+      onSearch: (text) => {
+        state.search = { q: text, mode: 'fusion' };
+        location.hash = '#/search';
+      },
+    }));
+    return;
+  }
+
   const counter = document.getElementById('fn-count');
   const paint = () => {
     const needle = FUNCS.query.trim().toLowerCase();
@@ -648,7 +894,10 @@ async function renderArchitecture() {
 
   draw(`
     <section class="head"><div><h1>系统架构视图</h1>
-      <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div></section>
+      <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div>
+      ${viewToggle('architecture')}</section>
+    <div id="arch-map"></div>
+    <div id="arch-list" ${VIEW.architecture === 'map' ? 'hidden' : ''}>
     <h2>入口与关键路径</h2>
     <ul class="plain chains">${entries || '<li class="muted">暂无关键路径</li>'}</ul>
     <h2>外部依赖</h2>
@@ -665,7 +914,15 @@ async function renderArchitecture() {
       <summary>组件—功能对齐 <span class="muted">${data.component_functions.length} 组</span></summary>
       <table><thead><tr><th>组件</th><th>层</th><th>承载的功能条目</th></tr></thead>
         <tbody>${align || '<tr><td colspan="3" class="muted">暂无功能条目</td></tr>'}</tbody></table>
-    </details>`);
+    </details>
+    </div>`);
+
+  bindViewToggle('architecture', () => renderArchitecture());
+  if (VIEW.architecture === 'map') {
+    document.getElementById('arch-map').appendChild(window.viz.archGraph(data, {
+      onFocus: (name) => { location.hash = `#/structure?focus=${encodeURIComponent(String(name).split('(')[0].trim())}`; },
+    }));
+  }
 
   // 组件里的类 chip 也支持 +N 就地展开
   document.querySelectorAll('.layers .chip.more').forEach((el) => {
@@ -864,6 +1121,7 @@ function uniqueFunctionChips(functions, limit = 18) {
 
 /* ------------------------------------------------------------------ 视图：影响 */
 async function renderImpact() {
+  let impactData = null;
   const [data, structure] = await Promise.all([
     api(`/api/projects/${state.pid}/overview`),
     api(`/api/projects/${state.pid}/structure`),
@@ -922,6 +1180,8 @@ async function renderImpact() {
         <div><b>${r.functions.length}</b><span>涉及功能</span></div>
         <div><b>${hops}</b><span>最大跳数</span></div>
       </div>
+      <div id="impact-map"></div>
+      <div id="impact-list" ${VIEW.impact === 'map' ? 'hidden' : ''}>
       <h2>影响扩散</h2>
       <div class="impact-flow">${flow}</div>
       ${chains ? `<h2>示例影响链</h2><ul class="plain chains-list">${chains}</ul>` : ''}
@@ -930,16 +1190,25 @@ async function renderImpact() {
           <p class="chips">${r.modules.map((m) => `<span class="chip">${esc(m.name || m)}</span>`).join('') || '<span class="muted">无</span>'}</p></div>
         <div><h2>涉及的功能</h2>
           <p class="chips">${uniqueFunctionChips(r.functions)}</p></div>
+      </div>
       </div>`;
+    impactData = r;
   }
   draw(`
     <section class="head"><div><h1>变更影响分析</h1>
-      <p class="muted">沿调用图反向查找：改这个类，哪些类、模块与功能要一起验证。</p></div></section>
+      <p class="muted">沿调用图反向查找：改这个类，哪些类、模块与功能要一起验证。</p></div>
+      ${viewToggle('impact')}</section>
     <div class="form-panel inline">
       <label>起点类<select id="impact-select">${options}</select></label>
       <label>方法<select id="impact-method">${methodOptions}</select></label>
     </div>
     ${result}`);
+  bindViewToggle('impact', () => renderImpact());
+  if (VIEW.impact === 'map' && impactData && window.viz) {
+    document.getElementById('impact-map').appendChild(window.viz.impactGraph(impactData, {
+      onFocus: (name) => { location.hash = `#/structure?focus=${encodeURIComponent(name)}`; },
+    }));
+  }
   const sel = document.getElementById('impact-select');
   if (sel) sel.onchange = (e) => {
     state.impactClass = Number(e.target.value);

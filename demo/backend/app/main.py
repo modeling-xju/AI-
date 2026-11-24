@@ -2,7 +2,7 @@
 """FastAPI 应用入口：挂 API 与前端静态资源。"""
 import os
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +28,23 @@ def create_app():
     @app.get("/api/health")
     def health():
         return {"ok": True, "llm": knowledge.status_text()}
+
+    @app.get("/api/fs/list")
+    def list_fs(path: str = ""):
+        """本地目录浏览：给「接入本地目录」当选择器用，只读。"""
+        target = os.path.abspath(os.path.expanduser(path.strip() or os.path.expanduser("~")))
+        if not os.path.isdir(target):
+            raise HTTPException(status_code=400, detail="目录不存在：%s" % target)
+        entries = []
+        try:
+            for entry in sorted(os.scandir(target), key=lambda e: (not e.is_dir(), e.name.lower())):
+                if entry.name.startswith("."):
+                    continue
+                entries.append({"name": entry.name, "path": entry.path, "is_dir": entry.is_dir()})
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="没有权限读取该目录")
+        parent = os.path.dirname(target)
+        return {"path": target, "parent": parent if parent != target else "", "entries": entries[:500]}
 
     @app.exception_handler(services.NotFound)
     async def not_found(_request: Request, error: services.NotFound):

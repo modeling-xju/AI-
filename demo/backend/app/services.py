@@ -27,6 +27,10 @@ def projects():
     rows = db.list_projects()
     return [{"id": row["id"], "name": row["name"], "root": row["root"],
              "status": row["status"], "engine": row["engine"] or "self",
+             "class_count": row["class_count"] or 0,
+             "method_count": row["method_count"] or 0,
+             "module_count": row["module_count"] or 0,
+             "file_count": row["file_count"] or 0,
              "created_at": row["created_at"]} for row in rows]
 
 

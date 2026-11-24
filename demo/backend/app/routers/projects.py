@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-"""工程接入：目录接入、zip 上传、分析触发与状态查询。"""
+"""工程接入：目录接入、Git 克隆、zip / 文件夹上传、下载、分析触发与状态查询。"""
+import io
+import json
 import os
 import shutil
 import zipfile
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from .. import db, services
@@ -91,6 +94,101 @@ def project_status(pid: int):
     # 索引指纹和库里对不上时提示前端：重新分析过，检索会重建索引。
     status["index_stale"] = retrieve.is_stale(pid)
     return status
+
+
+@router.get("/{pid}/files")
+def project_files(pid: int):
+    services.status(pid)
+    rows = db.query("SELECT id, path, package, loc, category FROM files WHERE project_id=? "
+                    "ORDER BY path", (pid,))
+    return {"files": [dict(row) for row in rows]}
+
+
+def _source_text(pid, path, content):
+    """库里存了源码就直接用；Joern 路径只存路径，回落到工程根目录读盘。"""
+    if content:
+        return content
+    row = db.query_one("SELECT root FROM projects WHERE id=?", (pid,))
+    root = (row or {}).get("root") or ""
+    if not root:
+        return ""
+    rel = (path or "").replace("\\", os.sep).replace("/", os.sep)
+    try:
+        with io.open(os.path.join(root, rel), "r", encoding="utf-8", errors="replace") as fp:
+            return fp.read()
+    except OSError:
+        return ""
+
+
+@router.get("/{pid}/files/{file_id}/download")
+def download_file(pid: int, file_id: int):
+    row = db.query_one("SELECT path, content FROM files WHERE project_id=? AND id=?", (pid, file_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    name = os.path.basename(row["path"].replace("\\", "/")) or "source.txt"
+    return Response(content=_source_text(pid, row["path"], row["content"]).encode("utf-8"),
+                    media_type="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": "attachment; filename*=UTF-8''%s"
+                             % _quote(name)})
+
+
+@router.get("/{pid}/export.zip")
+def export_project(pid: int, sub: str = ""):
+    """把库里保存的源码打包下载；sub 可限定某个目录前缀。"""
+    services.status(pid)
+    prefix = sub.replace("\\", "/").strip("/")
+    rows = db.query("SELECT path, content FROM files WHERE project_id=? ORDER BY path", (pid,))
+    buffer = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for row in rows:
+            path = (row["path"] or "").replace("\\", "/").lstrip("/")
+            if prefix and not path.startswith(prefix + "/") and path != prefix:
+                continue
+            archive.writestr(path or "source.txt", _source_text(pid, row["path"], row["content"]))
+            count += 1
+    buffer.seek(0)
+    project = db.project(pid)
+    base = (project["name"] if project else "project") or "project"
+    filename = "%s%s.zip" % (base, ("-" + os.path.basename(prefix)) if prefix else "")
+    return StreamingResponse(buffer, media_type="application/zip",
+                             headers={"Content-Disposition": "attachment; filename*=UTF-8''%s"
+                                      % _quote(filename),
+                                      "X-File-Count": str(count)})
+
+
+@router.post("/upload-files")
+async def upload_files(files: list[UploadFile] = File(...), paths: str = Form("[]"),
+                       name: str = Form(""), engine: str = Form("self")):
+    """浏览器里选一个文件夹（webkitdirectory）或多个文件，按相对路径落盘。"""
+    try:
+        relative = json.loads(paths or "[]")
+    except ValueError:
+        relative = []
+    if not files:
+        raise HTTPException(status_code=400, detail="没有收到文件")
+    label = name.strip() or "upload"
+    folder = os.path.join(UPLOAD_DIR, "files-" + label.replace(os.sep, "-"))
+    if os.path.isdir(folder):
+        shutil.rmtree(folder, ignore_errors=True)
+    os.makedirs(folder, exist_ok=True)
+    for index, upload in enumerate(files):
+        rel = relative[index] if index < len(relative) else (upload.filename or "")
+        rel = rel.replace("\\", "/").lstrip("/")
+        if not rel or ".." in rel.split("/"):
+            continue
+        target = os.path.join(folder, *rel.split("/"))
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "wb") as handle:
+            shutil.copyfileobj(upload.file, handle)
+    pid = db.create_project(label, folder, engine)
+    db.set_status(pid, status="new", step="", error="")
+    return services.status(pid)
+
+
+def _quote(text: str) -> str:
+    from urllib.parse import quote
+    return quote(text, safe="")
 
 
 @router.post("/{pid}/analyze")
