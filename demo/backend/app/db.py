@@ -135,6 +135,15 @@ CREATE TABLE IF NOT EXISTS metrics (
     value      REAL DEFAULT 0,
     note       TEXT DEFAULT ''
 );
+
+-- 每次分析留一份指标快照，对比页用来显示「本次 vs 上次」
+CREATE TABLE IF NOT EXISTS metrics_history (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    run_at     TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    value      REAL DEFAULT 0
+);
 """
 
 

@@ -362,7 +362,7 @@ function methodItem(m) {
   ].join('');
   const calls = (m.calls || []).slice(0, 4).map((x) =>
     `<span class="chip ${x.resolved ? '' : 'warn'}">→ ${esc(x.qualifier ? x.qualifier + '.' : '')}${esc(x.name)}</span>`).join('');
-  return `<li><b>${esc(m.name)}</b><code>${esc(m.signature)}</code>
+  return `<li class="method"><b>${esc(m.name)}</b><code>${esc(m.signature)}</code>
     <span class="muted">第 ${m.line} 行 · ${m.loc} 行</span>${facts}<span class="calls">${calls}</span></li>`;
 }
 
@@ -480,8 +480,8 @@ async function renderStructure() {
       target.classList.add('hl');
       target.scrollIntoView({ block: 'center', behavior: 'smooth' });
       setTimeout(() => target.classList.remove('hl'), 2200);
-      const row = Array.from(target.querySelectorAll('.method'))
-        .find((el) => el.textContent.includes(methodName));
+      const row = Array.from(target.querySelectorAll('li.method'))
+        .find((el) => ((el.querySelector('b') || {}).textContent || '') === methodName);
       if (row) {
         row.classList.add('hl');
         row.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -899,13 +899,28 @@ async function renderCompare() {
   const status = await api(`/api/projects/${state.pid}/status`);
   if (status.index_stale) toast('检索索引与最新分析结果不一致，正在重建…', 2000);
   const data = await api(`/api/projects/${state.pid}/compare`);
+  const delta = (data.history && data.history.delta) || {};
+  const fmtDelta = (key) => {
+    const d = delta[key];
+    if (!d) return '';
+    // 召回类按百分点显示，其余按原值
+    const isRecall = key.startsWith('recall');
+    const text = isRecall ? `${(Math.abs(d.delta) * 100).toFixed(1)}pt`
+      : Math.abs(d.delta).toFixed(3);
+    const up = d.delta > 0 ? 'up' : 'down';
+    return ` <span class="delta ${up}" title="上次 ${isRecall ? (d.previous * 100).toFixed(1) + '%' : d.previous}">${d.delta > 0 ? '▲' : '▼'} ${text}</span>`;
+  };
   const rows = data.metrics.map((m) => `
-    <tr><td>${esc(m.label)}</td><td class="num">${metricText(m)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('');
+    <tr><td>${esc(m.label)}</td><td class="num">${metricText(m)}${fmtDelta(m.key)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('');
   const rc = data.retrieval;
+  const hist = data.history || {};
+  const histLine = hist.run_at && hist.previous_run_at
+    ? `<p class="muted small">与上次分析对比：${esc(hist.previous_run_at)} → ${esc(hist.run_at)}（指标后为变化量）</p>`
+    : (hist.run_at ? '<p class="muted small">这是该工程的第一次分析，暂无可对比的历史。</p>' : '');
   const bar = (v) => `<div class="bar-mini"><i style="width:${Math.min(100, Math.round(v * 100))}%"></i></div>`;
   draw(`
     <section class="head"><div><h1>评测对比</h1>
-      <p class="muted">三处算法环节的量化结果，均可在现场复现。</p></div>
+      <p class="muted">三处算法环节的量化结果，均可在现场复现。</p>${histLine}</div>
       <button class="ghost" id="copy-md">复制为 Markdown</button></section>
     <h2>结构指标</h2>
     <table><thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead><tbody>${rows}</tbody></table>
@@ -973,7 +988,8 @@ async function renderDocs() {
     const heads = [...dom.querySelectorAll('h2')];
     heads.forEach((h, i) => { h.id = `sec-${i}`; });
     const tocItems = heads.map((h, i) =>
-      `<li><a href="#sec-${i}" data-sec="${i}">${esc(h.textContent)}</a></li>`).join('');
+      `<li class="toc-row"><input type="checkbox" class="sec-pick" data-sec="${i}" checked
+        aria-label="导出时包含本节"><a href="#sec-${i}" data-sec="${i}">${esc(h.textContent)}</a></li>`).join('');
     toc = tocItems
       ? `<p class="rail-label">目录</p><ul class="toc">${tocItems}</ul>`
       : '<p class="muted">这份文档没有二级标题</p>';
@@ -991,8 +1007,11 @@ async function renderDocs() {
     <div class="doc-tabs">${tabs}</div>
     ${state.docId ? `<div class="doc-layout">
       <aside class="doc-rail">${toc}
-        <p class="rail-label">操作</p>
-        <p><a class="btn" href="/api/projects/${state.pid}/documents/${state.docId}/export">导出 Markdown</a></p>
+        <p class="rail-label">导出</p>
+        <p class="rail-actions">
+          <a class="btn" href="/api/projects/${state.pid}/documents/${state.docId}/export">整篇 Markdown</a>
+          <button class="ghost" id="export-sel" type="button">导出所选章节</button>
+        </p>
       </aside>
       <div class="doc-wrap">${preview}</div>
     </div>` : '<p class="muted">还没有文档，先点上面的生成按钮。</p>'}`);
@@ -1037,6 +1056,34 @@ async function renderDocs() {
         tocEl.querySelectorAll('a').forEach((x) => x.classList.toggle('on', x === a));
       };
     });
+  }
+
+  // 按勾选的章节导出：拿服务端的整篇 Markdown，按「## 」切开再拼回
+  const exportSel = document.getElementById('export-sel');
+  if (exportSel) {
+    exportSel.onclick = async () => {
+      const picked = new Set(Array.from(document.querySelectorAll('.sec-pick'))
+        .filter((cb) => cb.checked).map((cb) => Number(cb.dataset.sec)));
+      if (!picked.size) { toast('至少勾选一节'); return; }
+      try {
+        const res = await fetch(`/api/projects/${state.pid}/documents/${state.docId}/export`);
+        if (!res.ok) throw new Error('导出失败：' + res.status);
+        const text = await res.text();
+        const parts = text.split(/\n(?=## )/);
+        const head = parts[0].startsWith('## ') ? '' : parts[0];
+        const sections = parts.filter((p) => p.startsWith('## '));
+        const body = sections.filter((_, i) => picked.has(i)).join('\n');
+        const blob = new Blob([`${head}${body}`], { type: 'text/markdown;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `doc-${state.docKind || 'doc'}-${picked.size}节.md`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast(`已导出 ${picked.size} 节`);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
   }
 }
 

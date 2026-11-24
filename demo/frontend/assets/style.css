@@ -608,3 +608,16 @@ details.hl > summary { border-radius: 3px; }
 :root[data-theme="dark"] a.btn { background: var(--card); color: var(--ink); border: 1px solid var(--line);
   border-radius: 4px; padding: 8px 14px; }
 :root[data-theme="dark"] table { background: transparent; }
+/* 目录里的章节勾选（导出所选章节用） */
+.toc-row { display: flex; align-items: center; gap: 8px; padding-left: 6px; }
+.toc-row input[type="checkbox"] { width: 12px; height: 12px; margin: 0; accent-color: var(--primary);
+  flex: none; cursor: pointer; }
+.toc-row a { margin-left: 0; padding-left: 6px; flex: 1; min-width: 0; }
+.rail-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.rail-actions .btn, .rail-actions button { width: 100%; text-align: center; }
+/* 指标变化量 */
+.delta { font: 500 10.5px/1 var(--mono); margin-left: 6px; padding: 2px 5px; border-radius: 3px; }
+.delta.up { color: var(--ok); background: rgba(15, 123, 63, .08); }
+.delta.down { color: #b4451f; background: rgba(180, 69, 31, .08); }
+:root[data-theme="dark"] .delta.up { background: rgba(82, 181, 125, .14); }
+:root[data-theme="dark"] .delta.down { background: rgba(220, 120, 90, .16); color: #e79a7c; }

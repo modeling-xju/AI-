@@ -226,6 +226,28 @@ def _component_functions(pid):
     return result
 
 
+def _previous_snapshot(pid):
+    """取最近一次与上一次的分析快照（不足两次时 previous 为空）。"""
+    runs = db.query("SELECT DISTINCT run_at FROM metrics_history WHERE project_id=? "
+                    "ORDER BY run_at DESC LIMIT 2", (pid,))
+    if not runs:
+        return None
+
+    def load(run_at):
+        return {row["key"]: row["value"] for row in db.query(
+            "SELECT key, value FROM metrics_history WHERE project_id=? AND run_at=?",
+            (pid, run_at))}
+
+    newest = runs[0]["run_at"]
+    older = runs[1]["run_at"] if len(runs) > 1 else ""
+    return {
+        "run_at": newest,
+        "previous_run_at": older,
+        "current": load(newest),
+        "previous": load(older) if older else {},
+    }
+
+
 def compare(pid):
     _project(pid)
     metrics = db.query("SELECT key, label, value, note FROM metrics WHERE project_id=? "
@@ -239,11 +261,25 @@ def compare(pid):
     else:
         evaluation = retrieve.evaluate(pid)
         COMPARE_CACHE[pid] = {"signature": signature, "evaluation": evaluation}
+    snapshot = _previous_snapshot(pid)
+    delta = {}
+    if snapshot:
+        for key, current in snapshot["current"].items():
+            before = snapshot["previous"].get(key)
+            if before is None:
+                continue
+            if abs(current - before) >= 0.0005:
+                delta[key] = {"current": current, "previous": before,
+                              "delta": round(current - before, 3),
+                              "run_at": snapshot["run_at"]}
     return {
         "metrics": metrics,
         "package_modularity": by_key.get("package_modularity", 0),
         "nmi": by_key.get("nmi", 0),
         "retrieval": evaluation,
+        "history": {"run_at": snapshot["run_at"] if snapshot else "",
+                    "previous_run_at": snapshot["previous_run_at"] if snapshot else "",
+                    "delta": delta},
     }
 
 

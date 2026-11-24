@@ -377,6 +377,10 @@ def _store_metrics(pid, adjacency, labels, quality, package_labels, classes, sca
     db.execute_many("INSERT INTO metrics(project_id, key, label, value, note) "
                     "VALUES(?,?,?,?,?)",
                     [(pid, key, label, value, note) for key, label, value, note in metrics])
+    # 留一份快照，对比页显示「本次 vs 上次」
+    run_at = db.now()
+    db.execute_many("INSERT INTO metrics_history(project_id, run_at, key, value) VALUES(?,?,?,?)",
+                    [(pid, run_at, key, value) for key, _, value, _ in metrics])
     categories = scan["categories"]
     db.execute("UPDATE projects SET file_count=?, loc=?, class_count=?, method_count=?, "
                "module_count=?, modularity=?, nmi=?, build_tool=?, test_count=?, "
