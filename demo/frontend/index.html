@@ -7,26 +7,41 @@
 <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <span class="logo">AI</span>
-    <span>软件逆向工程系统</span><span class="tag">DEMO</span>
-  </div>
-  <nav id="nav" class="nav">
-    <a href="#/overview" data-view="overview">总览</a>
-    <a href="#/structure" data-view="structure">代码结构</a>
-    <a href="#/functions" data-view="functions">功能需求</a>
-    <a href="#/architecture" data-view="architecture">系统架构</a>
-    <a href="#/search" data-view="search">语义检索</a>
-    <a href="#/impact" data-view="impact">变更影响</a>
-    <a href="#/compare" data-view="compare">评测对比</a>
-    <a href="#/docs" data-view="docs">文档生成</a>
-  </nav>
-</header>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="side-brand">
+      <span class="logo">AI</span>
+      <div class="side-title">
+        <b>软件逆向工程系统</b>
+        <span>DEMO</span>
+      </div>
+    </div>
+    <nav id="nav" class="side-nav">
+      <a href="#/overview" data-view="overview">总览</a>
+      <a href="#/structure" data-view="structure">代码结构</a>
+      <a href="#/functions" data-view="functions">功能需求</a>
+      <a href="#/architecture" data-view="architecture">系统架构</a>
+      <a href="#/search" data-view="search">语义检索</a>
+      <a href="#/impact" data-view="impact">变更影响</a>
+      <a href="#/compare" data-view="compare">评测对比</a>
+      <a href="#/docs" data-view="docs">文档生成</a>
+    </nav>
+    <div class="side-foot">
+      <span>Python · SQLite</span>
+      <span>Joern 4.0.690</span>
+    </div>
+  </aside>
 
-<main id="app" class="app">
-  <div class="loading"><span class="spinner"></span>正在加载…</div>
-</main>
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb"><span class="crumb-root">逆向工程</span><span class="sep">/</span><b id="crumb">总览</b></div>
+      <div class="top-meta" id="top-meta"></div>
+    </header>
+    <main id="app" class="app">
+      <div class="loading"><span class="spinner"></span>正在加载…</div>
+    </main>
+  </div>
+</div>
 
 <div id="toast" class="toast" hidden></div>
 <script src="/assets/app.js"></script>

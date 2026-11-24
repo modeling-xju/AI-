@@ -26,30 +26,61 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---------------------------------------------------------------- 顶栏 */
-.topbar {
-  position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; justify-content: space-between; gap: 24px;
-  padding: 0 26px; height: 54px;
-  background: var(--card); color: var(--ink);
-  border-bottom: 1px solid var(--line);
+/* ---------------------------------------------------------------- 侧边栏 + 顶栏 */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  position: sticky; top: 0; align-self: flex-start; flex: none;
+  display: flex; flex-direction: column; width: 216px; height: 100vh;
+  background: #001529; color: #a6adb4;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -.01em; }
-.brand .logo {
-  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 4px;
+.side-brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 14px; }
+.side-brand .logo {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 4px;
   background: var(--primary); color: #fff; font: 700 10px/1 var(--mono); letter-spacing: .04em;
 }
-.brand .tag { font: 400 10px/1 var(--mono); color: var(--muted); letter-spacing: .14em;
-  text-transform: uppercase; border-left: 1px solid var(--line); padding-left: 10px; }
-.nav { display: flex; gap: 2px; }
-.nav a {
-  padding: 6px 11px; border-radius: 4px; color: var(--muted); text-decoration: none; font-size: 13px;
+.side-title { display: flex; flex-direction: column; line-height: 1.35; }
+.side-title b { color: #fff; font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+.side-title span { font: 400 9.5px/1.2 var(--mono); letter-spacing: .16em; color: #8b98a5; }
+.side-nav { display: flex; flex-direction: column; padding: 6px 8px; gap: 2px; flex: 1; }
+.side-nav a {
+  display: block; padding: 9px 12px; border-radius: 4px; color: #a6adb4;
+  text-decoration: none; font-size: 13px; border-left: 3px solid transparent;
 }
-.nav a:hover { background: #f0f4f8; color: var(--ink); }
-.nav a.active { background: var(--soft); color: var(--primary-dark); font-weight: 600; }
+.side-nav a:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.side-nav a.active { background: var(--primary); color: #fff; border-left-color: #4fa3dd; font-weight: 500; }
+.side-foot { padding: 14px 16px; border-top: 1px solid rgba(255, 255, 255, .07);
+  font: 400 10px/1.7 var(--mono); color: #8b98a5; display: flex; flex-direction: column; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 0 26px; height: 50px; background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.crumb b { color: var(--ink); font-weight: 600; }
+.crumb .sep { color: #c3c8cd; }
+.top-meta { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+.top-meta .meta-item { font-family: var(--mono); font-size: 11.5px; }
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  .sidebar { position: static; width: auto; height: auto; }
+  .side-brand { padding: 12px 14px 10px; }
+  .side-nav { flex-direction: row; overflow-x: auto; gap: 4px; padding: 0 10px 10px;
+    -webkit-overflow-scrolling: touch; }
+  .side-nav a { flex: 0 0 auto; white-space: nowrap; border-left: none; padding: 7px 11px;
+    border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; }
+  .side-nav a.active { border-left-color: transparent; border-bottom-color: #fff; }
+  .side-foot { display: none; }
+  .topbar { padding: 0 14px; gap: 10px; }
+  .top-meta .meta-item { display: none; }
+  .app { padding: 16px 14px 48px; }
+  h1 { font-size: 21px; }
+}
 
 /* ---------------------------------------------------------------- 布局 */
-.app { max-width: 1180px; margin: 0 auto; padding: 26px 28px 64px; }
+.app { width: 100%; max-width: 1240px; margin: 0 auto; padding: 22px 28px 64px; }
 .loading { padding: 80px 0; text-align: center; color: var(--muted); font-size: 13px; }
 .spinner { display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px;
   border: 2px solid var(--line); border-top-color: var(--primary); border-radius: 50%;
@@ -70,7 +101,7 @@ a { color: var(--primary); }
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
 }
 .project-bar label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-select, input {
+select, input {\n  max-width: 100%;
   padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px;
   background: #fff; font: inherit; color: var(--ink);
 }
@@ -107,7 +138,7 @@ button.ghost { background: #fff; }
 table { width: 100%; border-collapse: collapse; background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 th, td { padding: 9px 14px; text-align: left; font-size: 13.5px; border-bottom: 1px solid var(--line-soft); }
-th { background: var(--bg); font-weight: 600; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+th { background: var(--bg); white-space: nowrap; font-weight: 600; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
 tbody tr:last-child td { border-bottom: none; }
 td.num { font-variant-numeric: tabular-nums; font-weight: 600; }
 td.classes, .classes { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -143,7 +174,7 @@ ul.plain li { margin: 5px 0; }
 
 /* ---------------------------------------------------------------- 结构页 */
 .toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; flex-wrap: wrap; }
-.toolbar .grow { flex: 1 1 320px; min-width: 240px; }
+.toolbar .grow { flex: 1 1 320px; min-width: 0; max-width: 100%; }
 button.ghost { background: #fff; border: 1px solid var(--line); color: var(--ink-2);
   padding: 8px 14px; border-radius: 9px; font-size: 13px; cursor: pointer; }
 button.ghost:hover { border-color: var(--primary); color: var(--primary); }

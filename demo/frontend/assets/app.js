@@ -62,8 +62,15 @@ function toast(msg, ms = 2600) {
   el._t = setTimeout(() => { el.hidden = true; }, ms);
 }
 
+const VIEW_LABELS = {
+  overview: '总览', structure: '代码结构', functions: '功能需求', architecture: '系统架构',
+  search: '语义检索', impact: '变更影响', compare: '评测对比', docs: '文档生成',
+};
+
 function view(name) {
   $nav.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
+  const crumb = document.getElementById('crumb');
+  if (crumb) crumb.textContent = VIEW_LABELS[name] || name;
 }
 
 function currentRoute() {
@@ -770,9 +777,23 @@ const VIEWS = {
   docs: renderDocs,
 };
 
+const STATUS_LABEL = { analyzed: '已分析', running: '分析中', new: '待分析', pending: '待分析', failed: '失败' };
+
 function draw(body) {
   $app.innerHTML = shell(body);
   bindProjectBar(render);
+  const meta = document.getElementById('top-meta');
+  if (meta) {
+    const p = state.projects.find((x) => x.id === state.pid);
+    if (p) {
+      const engine = p.engine === 'joern' ? 'Joern CPG' : '自研解析器';
+      meta.innerHTML = `<span class="meta-item">${esc(p.name)}</span>
+        <span class="meta-item">${esc(engine)}</span>
+        <span class="badge ${p.status === 'analyzed' ? 'ok' : ''}">${esc(STATUS_LABEL[p.status] || p.status)}</span>`;
+    } else {
+      meta.innerHTML = '';
+    }
+  }
   api(`/api/projects/${state.pid}/status`).then(showProgress).catch(() => {});
 }
 

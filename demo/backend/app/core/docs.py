@@ -5,8 +5,19 @@
 frontend 也可以直接用 html 字段）。
 """
 import html
+import re
 
 from .. import db
+
+# Joern 的签名带全限定名（org.springblade.core.tool.api.R），文档表格里读起来太吵：
+# 去掉包前缀只留简单类名，泛型里的全名也一并处理。
+_FQN_RE = re.compile(r"\b(?:[a-z_$][\w$]*\.)+([A-Z][\w$]*)")
+
+
+def _simple(text):
+    if not text:
+        return text
+    return _FQN_RE.sub(r"\1", str(text))
 
 KINDS = {
     "api": "接口文档",
@@ -65,10 +76,10 @@ def api_doc(pid):
                   "| --- | --- | --- | --- | --- |"]
         for method in methods:
             doc = method["doc"] or "—"
-            params = method["params"] or "—"
+            params = _simple(method["params"]) or "—"
             lines.append("| `%s` | %s | %s | %s | 第 %d 行 |" % (
-                html.escape(method["signature"]), doc, params,
-                method["return_type"] or "void", method["line"]))
+                html.escape(_simple(method["signature"])), doc, params,
+                _simple(method["return_type"]) or "void", method["line"]))
         lines.append("")
     return "\n".join(lines)
 
