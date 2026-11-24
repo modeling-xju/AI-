@@ -34,6 +34,19 @@
     <h4>还没有选中</h4>
     <p class="muted small">${text}</p>`;
 
+  // 左侧窄栏：视图名 + 规模数字 + 图例 + 一句话说明（参考 TransSpect 的 VIEW MATRIX）
+  const railEl = (stats, note, layers) => {
+    const el = document.createElement('aside');
+    el.className = 'map-rail';
+    const rows = stats.filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+    el.innerHTML = `<p class="eyebrow"><i></i>VIEW</p>
+      <dl class="rail-stats">${rows}</dl>
+      ${layers && layers.length ? legend(layers) : ''}
+      <p class="rail-note">${note}</p>`;
+    return el;
+  };
+
   const kv = (rows) => `<dl class="kv">${rows.filter(Boolean)
     .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
 
@@ -100,10 +113,20 @@
       return el;
     };
 
+    // 中英文混排按字形宽度估：汉字约等于字号，拉丁字母约 0.55 字号
+    const charW = (ch) => (/[\u3400-\u9fff\uff00-\uffef]/.test(ch) ? 12 : 6.6);
     const clip = (str, px) => {
-      const max = Math.max(2, Math.floor((px - 14) / 6.4));
       const s = String(str || '');
-      return s.length > max ? s.slice(0, max - 1) + '…' : s;
+      const room = Math.max(8, px - 16);
+      let used = 0;
+      let out = '';
+      for (const ch of s) {
+        const w = charW(ch);
+        if (used + w > room) return out.slice(0, -1) + '…';
+        out += ch;
+        used += w;
+      }
+      return out;
     };
 
     // 二叉切分：按面积把子节点分成两半，沿较长边切开（比例仍按面积）
@@ -319,6 +342,14 @@
     inspector.innerHTML = emptyInsp('面积代表类数。点大块下钻到包，点文件块看类、方法、字段与源码位置。');
     const wrap = document.createElement('div');
     wrap.className = 'map-shell';
+    wrap.appendChild(railEl(
+      [
+        ['模块', node.children.length],
+        ['文件', node.children.reduce((n, mod) => n + mod.children.reduce((m, pkg) => m + pkg.children.length, 0), 0)],
+        ['类', node.children.reduce((n, mod) => n + mod.children.reduce((m, pkg) => m + pkg.children.reduce((k, f) => k + (f.value || 0), 0), 0), 0)],
+      ],
+      '面积 = 类数。块越大类越多，点大块下钻。',
+      ['接入层', '业务层', '数据层', '领域层', '公共层']));
     wrap.appendChild(tree);
     wrap.appendChild(inspector);
     return wrap;
@@ -366,6 +397,10 @@
     inspector.innerHTML = emptyInsp('面积代表功能条目数。点模块块看条目，点条目块看证据方法。');
     const wrap = document.createElement('div');
     wrap.className = 'map-shell';
+    wrap.appendChild(railEl(
+      [['模块', functions.tree.length], ['条目', functions.leaf_count]],
+      '面积 = 功能条目数。点模块块看条目清单。',
+      ['接入层', '业务层', '数据层', '领域层', '公共层']));
     wrap.appendChild(tree);
     wrap.appendChild(inspector);
     return wrap;
@@ -424,6 +459,14 @@
     pane.className = 'map-pane';
     pane.appendChild(grid);
     pane.insertAdjacentHTML('beforeend', legend(LAYERS));
+    wrap.appendChild(railEl(
+      [
+        ['模块', new Set(all.map((c) => String(c.module || c.name).split('·')[0])).size],
+        ['组件', components.length],
+        ['分层', LAYERS.length],
+      ],
+      '行 = 模块，列 = 分层；格子里的数字是类数。',
+      []));
     wrap.appendChild(pane);
 
     const inspector = document.createElement('div');
@@ -576,6 +619,10 @@
     const usedLayers = [...new Set(nodes.map((n) => n.layer).filter(Boolean))];
     pane.insertAdjacentHTML('beforeend', legend(usedLayers.length
       ? usedLayers : ['接入层', '业务层', '数据层', '领域层', '公共层']));
+    wrap.appendChild(railEl(
+      [['受影响类', nodes.length - 1], ['最大跳数', maxHop]],
+      '列 = 跳数；点卡片看路径。',
+      []));
     wrap.appendChild(pane);
     wrap.appendChild(inspector);
     return wrap;

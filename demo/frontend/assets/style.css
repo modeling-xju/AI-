@@ -1,23 +1,27 @@
 /* hidden 属性要压过各组件自己的 display */
 [hidden] { display: none !important; }
 
+/* 设计 token 对齐 D:\Projects\Software-TransSpect 的 prototype.css（浅色） */
 :root {
-  --bg: #fbfcfd;
+  --bg: #f5f7fb;
   --card: #ffffff;
-  --line: #dee2e5;
-  --line-soft: #eef0f3;
-  --ink: #0d0d0d;
-  --ink-2: #2b3036;
-  --muted: #55585c;
-  --faint: #6f757a;
-  --primary: #0074c9;
-  --primary-dark: #00599a;
-  --cyan: #24a8d8;
-  --soft: #eef0f3;
-  --ok: #0f7b3f;
-  --warn: #b25c00;
-  --radius: 6px;
-  --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --card-2: #eef3f9;
+  --line: #dbe3ef;
+  --line-soft: #e7ecf3;
+  --ink: #172033;
+  --ink-2: #24324a;
+  --muted: #66758a;
+  --faint: #66758a;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --cyan: #0ea5a4;
+  --soft: #eef3f9;
+  --ok: #16835b;
+  --warn: #d08a18;
+  --danger: #d14343;
+  --radius: 8px;
+  --shadow: 0 1px 2px #0f172a0d, 0 8px 24px #0f172a0f;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -26,7 +30,7 @@ body {
   margin: 0;
   color: var(--ink);
   background-color: var(--bg);
-  background-image: radial-gradient(#dfe4e8 1px, transparent 1px);
+  background-image: radial-gradient(#dfe7f2 1px, transparent 1px);
   background-size: 22px 22px;
   background-position: -1px -1px;
   font: 14px/1.62 ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
@@ -288,7 +292,7 @@ td.nowrap { white-space: nowrap; }
 .chip.more:hover { border-color: var(--primary); color: var(--primary); border-style: solid; }
 .chip.quick { cursor: pointer; font-size: 11.5px; padding: 2px 9px; }
 .chip.quick:hover { border-color: var(--primary); color: var(--primary); }
-.chip.soft { background: var(--line-soft); border-color: transparent; color: var(--muted); }
+.chip.soft { background: var(--line-soft); border-color: transparent; color: var(--ink-2); }
 .hit-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 8px; }
 .hit-meta .quick { display: flex; gap: 5px; flex-wrap: wrap; }
 .badge { color: #3f474d; display: inline-block; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--line);
@@ -530,20 +534,24 @@ a.jump:hover { color: var(--primary); text-decoration: underline; text-underline
 details.hl > summary, .method.hl { background: #eaf4fd; box-shadow: inset 2px 0 0 var(--primary); }
 details.hl > summary { border-radius: 3px; }
 /* ---------------------------------------------------------------- 深色模式 */
+/* 深色 token 同样取自 prototype.css 的 [data-theme="dark"] */
 :root[data-theme="dark"] {
-  --bg: #0e1318;
-  --card: #141b22;
-  --line: #2a343d;
-  --line-soft: #1d262e;
-  --ink: #e8edf2;
-  --ink-2: #cdd6de;
-  --muted: #9aa7b2;
-  --faint: #7e8b96;
-  --primary: #4aa8e8;
-  --primary-dark: #7cc4f4;
-  --cyan: #4aa8e8;
-  --soft: #1b242c;
-  --ok: #52b57d;
+  --bg: #0b1018;
+  --card: #111925;
+  --card-2: #182332;
+  --line: #2b394c;
+  --line-soft: #222f40;
+  --ink: #f1f5fb;
+  --ink-2: #e7edf7;
+  --muted: #9aa8bb;
+  --faint: #9aa8bb;
+  --primary: #4f8ff7;
+  --primary-dark: #8db6ff;
+  --cyan: #3dceb0;
+  --soft: #182332;
+  --ok: #35b987;
+  --warn: #e6a742;
+  --shadow: 0 0 0 1px #ffffff0f, 0 20px 48px #0000005c;
   color-scheme: dark;
 }
 :root[data-theme="dark"] body {
@@ -763,15 +771,34 @@ details.hl > summary { border-radius: 3px; }
   --bv-muted: #9aaba6;
   --bv-accent: #9ee9ca;
   --bv-dot: #ffffff10;
-  display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: 0;
+  display: grid; grid-template-columns: 176px minmax(0, 1fr) 21rem; gap: 0;
   border: 1px solid var(--bv-line); border-radius: 10px; overflow: hidden;
   background: var(--bv-bg); margin-top: 14px;
+}
+
+/* 左侧视图栏：规模 + 图例 + 说明（参考 TransSpect 的 VIEW MATRIX） */
+.map-rail {
+  padding: 18px 16px 14px; border-right: 1px solid var(--bv-line);
+  background: var(--bv-panel); color: var(--bv-text);
+  display: flex; flex-direction: column; gap: 14px; min-width: 0;
+}
+.map-rail .eyebrow { margin: 0; }
+.rail-stats { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.rail-stats div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rail-stats dt { color: var(--bv-muted); font: 400 10.5px/1.4 var(--mono); letter-spacing: .06em; }
+.rail-stats dd { margin: 0; color: var(--bv-text); font: 600 15px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.map-rail .map-legend { flex-direction: column; align-items: flex-start; gap: 7px; margin: 0; }
+.rail-note { margin: 0; color: var(--bv-muted); font-size: 11.5px; line-height: 1.55; }
+
+@media (max-width: 1240px) {
+  .map-shell { grid-template-columns: minmax(0, 1fr) 21rem; }
+  .map-rail { display: none; }
 }
 
 @media (max-width: 980px) { .map-shell { grid-template-columns: 1fr; } }
 
 .map-pane { min-width: 0; }
-.map-shell > :first-child {
+.map-shell > .map-pane {
   min-width: 0; padding: 18px 18px 16px;
   background-image: radial-gradient(var(--bv-dot) 1px, transparent 1px);
   background-size: 22px 22px;
@@ -926,7 +953,7 @@ details.hl > summary { border-radius: 3px; }
   --bv-accent: #167552;
   --bv-dot: #00000010;
 }
-:root[data-theme="light"] .map-shell > :first-child { background-color: #f6f8f7; }
+:root[data-theme="light"] .map-shell > .map-pane { background-color: #f6f8f7; }
 :root[data-theme="light"] .map-shell .insp { box-shadow: inset 0 0 0 1px var(--bv-line); }
 :root[data-theme="light"] .tm-rect > rect { fill: #ffffff; }
 :root[data-theme="light"] .tm-rect.d2 > rect { fill: color-mix(in srgb, var(--tint, #7bc9a8) 16%, #ffffff); }
