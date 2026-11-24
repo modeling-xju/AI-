@@ -87,7 +87,10 @@ async def upload_project(file: UploadFile = File(...), name: str = Form(""),
 
 @router.get("/{pid}/status")
 def project_status(pid: int):
-    return services.status(pid)
+    status = services.status(pid)
+    # 索引指纹和库里对不上时提示前端：重新分析过，检索会重建索引。
+    status["index_stale"] = retrieve.is_stale(pid)
+    return status
 
 
 @router.post("/{pid}/analyze")
@@ -96,7 +99,10 @@ def analyze(pid: int):
     retrieve.invalidate(pid)
     db.set_status(pid, status="running", step="扫描源码", error="")
     pipeline.run_async(pid)
-    return services.status(pid)
+    payload = services.status(pid)
+    payload["index"] = "invalidated"
+    payload["hint"] = "检索索引已失效，下一次检索或评测会自动重建"
+    return payload
 
 
 @router.delete("/{pid}")

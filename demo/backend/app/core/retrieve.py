@@ -44,12 +44,22 @@ def _text_of(row):
 
 
 def _signature(pid):
+    """索引指纹：计数 + 最大行号。
+
+    只数计数不够：重新分析会重建 methods/functions/modules 的行，条数可能不变，
+    但行号全变了，文档 id 与 payload 里的 id 对不上，检索结果就会指到别的代码。
+    把 MAX(id) 也算进指纹，跨进程重跑分析后服务端也会自动重建索引。
+    """
     row = db.query_one(
         "SELECT (SELECT COUNT(*) FROM methods WHERE project_id=?) AS methods, "
+        "(SELECT COALESCE(MAX(id), 0) FROM methods WHERE project_id=?) AS methods_max, "
         "(SELECT COUNT(*) FROM functions WHERE project_id=?) AS functions, "
-        "(SELECT COUNT(*) FROM modules WHERE project_id=?) AS modules",
-        (pid, pid, pid))
-    return (row["methods"], row["functions"], row["modules"])
+        "(SELECT COALESCE(MAX(id), 0) FROM functions WHERE project_id=?) AS functions_max, "
+        "(SELECT COUNT(*) FROM modules WHERE project_id=?) AS modules, "
+        "(SELECT COALESCE(MAX(id), 0) FROM modules WHERE project_id=?) AS modules_max",
+        (pid, pid, pid, pid, pid, pid))
+    return (row["methods"], row["methods_max"], row["functions"],
+            row["functions_max"], row["modules"], row["modules_max"])
 
 
 def build_index(pid):
@@ -169,6 +179,14 @@ def _class_neighbors(pid):
 
 def invalidate(pid):
     INDEXES.pop(pid, None)
+
+
+def is_stale(pid):
+    """缓存里的索引是否与库不一致：没有缓存也算「需要重建」。"""
+    cached = INDEXES.get(pid)
+    if not cached:
+        return True
+    return cached.get("signature") != _signature(pid)
 
 
 def _index(pid):

@@ -146,7 +146,8 @@ async function startAnalyze(pid, rerender) {
         stopPolling();
         await loadProjects();
         rerender();
-        toast(s.status === 'failed' ? `分析失败：${s.error}` : '分析完成');
+        toast(s.status === 'failed' ? `分析失败：${s.error}`
+          : '分析完成；检索索引已刷新');
       }
     } catch (err) {
       stopPolling();
@@ -500,6 +501,9 @@ async function renderImpact() {
 
 /* ------------------------------------------------------------------ 视图：对比 */
 async function renderCompare() {
+  // 评测要重建检索索引；索引与库里对不上时先提示一句，避免以为数字算错了。
+  const status = await api(`/api/projects/${state.pid}/status`);
+  if (status.index_stale) toast('检索索引与最新分析结果不一致，正在重建…', 2000);
   const data = await api(`/api/projects/${state.pid}/compare`);
   const rows = data.metrics.map((m) => `
     <tr><td>${esc(m.label)}</td><td class="num">${metricText(m)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('');
