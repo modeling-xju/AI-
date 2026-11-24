@@ -526,3 +526,85 @@ a.jump { color: var(--ink); text-decoration: none; }
 a.jump:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 details.hl > summary, .method.hl { background: #eaf4fd; box-shadow: inset 2px 0 0 var(--primary); }
 details.hl > summary { border-radius: 3px; }
+/* ---------------------------------------------------------------- 深色模式 */
+:root[data-theme="dark"] {
+  --bg: #0e1318;
+  --card: #141b22;
+  --line: #2a343d;
+  --line-soft: #1d262e;
+  --ink: #e8edf2;
+  --ink-2: #cdd6de;
+  --muted: #9aa7b2;
+  --faint: #7e8b96;
+  --primary: #4aa8e8;
+  --primary-dark: #7cc4f4;
+  --cyan: #4aa8e8;
+  --soft: #1b242c;
+  --ok: #52b57d;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] body {
+  background-image: radial-gradient(#232c34 1px, transparent 1px);
+}
+:root[data-theme="dark"] .topbar { background: rgba(14, 19, 24, .86); }
+:root[data-theme="dark"] .stat,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .mod-card,
+:root[data-theme="dark"] .comp,
+:root[data-theme="dark"] .hit-row,
+:root[data-theme="dark"] .hit-detail,
+:root[data-theme="dark"] .doc,
+:root[data-theme="dark"] .project-bar,
+:root[data-theme="dark"] .doc-tabs,
+:root[data-theme="dark"] table { background: var(--card); }
+:root[data-theme="dark"] .chip { background: #1b242c; border-color: var(--line); color: var(--ink-2); }
+:root[data-theme="dark"] .chip.more { color: var(--faint); }
+:root[data-theme="dark"] .hop-col.origin { background: #16222c; border-color: #2c3f4d; }
+:root[data-theme="dark"] details.hl > summary,
+:root[data-theme="dark"] .method.hl { background: #17293a; }
+:root[data-theme="dark"] .hero .grad { filter: brightness(1.15); }
+:root[data-theme="dark"] .eyebrow span { color: var(--ink-2); }
+:root[data-theme="dark"] .doc code,
+:root[data-theme="dark"] code { background: #1b242c; }
+:root[data-theme="dark"] thead th { color: var(--faint); }
+.theme-btn {
+  margin-left: 4px; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  font-size: 12px; line-height: 1; cursor: pointer;
+}
+.theme-btn:hover { color: var(--primary); border-color: var(--primary); }
+/* ---------------------------------------------------------------- 空状态 */
+.empty { max-width: 880px; margin: 6vh auto 0; }
+.empty-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 22px 0 18px; }
+.empty-cards .card {
+  display: block; text-align: left; padding: 18px 18px 16px; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer;
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.empty-cards .card:hover { border-color: var(--primary); transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(16, 30, 54, .06); }
+.empty-cards .card b { display: block; font-size: 14.5px; margin-bottom: 6px; }
+.empty-cards .card small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.small { font-size: 12.5px; }
+@media (max-width: 760px) { .empty-cards { grid-template-columns: 1fr; } }
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] button.ghost,
+:root[data-theme="dark"] button:not(.primary):not(.link) { background: var(--card); color: var(--ink); }
+:root[data-theme="dark"] button.primary { background: #e8edf2; border-color: #e8edf2; color: #0e1318; }
+:root[data-theme="dark"] button.primary:hover { background: #fff; }
+:root[data-theme="dark"] .chip,
+:root[data-theme="dark"] .badge { background: #1b242c; }
+:root[data-theme="dark"] .bar, :root[data-theme="dark"] .progress { background: #1b242c; }
+:root[data-theme="dark"] .toast { background: #e8edf2; color: #0e1318; }
+:root[data-theme="dark"] .badge,
+:root[data-theme="dark"] .hit-row .badge { color: var(--ink-2); border-color: var(--line); }
+:root[data-theme="dark"] .method b,
+:root[data-theme="dark"] .method code,
+:root[data-theme="dark"] .file > summary b,
+:root[data-theme="dark"] .cls > summary b { color: var(--ink); }
+:root[data-theme="dark"] th { background: #1b242c; }
+:root[data-theme="dark"] .btn,
+:root[data-theme="dark"] a.btn { background: var(--card); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 4px; padding: 8px 14px; }
+:root[data-theme="dark"] table { background: transparent; }

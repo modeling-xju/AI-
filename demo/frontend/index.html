@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI 赋能的软件逆向工程系统 · demo</title>
 <link rel="stylesheet" href="/assets/style.css">
+<script>
+  // 先定主题再渲染，避免浅色闪一下
+  (function () {
+    var saved = localStorage.getItem('theme');
+    var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  })();
+</script>
 </head>
 <body>
 <header class="topbar">
@@ -26,6 +34,8 @@
   <div class="hud" id="hud">
     <span class="dot"></span><span id="hud-engine">ENGINE · —</span>
     <span class="hud-sep">/</span><span id="hud-status">SYNC · —</span>
+    <button class="theme-btn" id="theme-btn" type="button" title="切换明暗主题"
+      aria-label="切换明暗主题"><span id="theme-icon">◐</span></button>
   </div>
 </header>
 

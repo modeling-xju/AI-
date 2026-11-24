@@ -674,11 +674,12 @@ async function renderSearch() {
     if (!r) return '<p class="muted">没有命中，换个说法试试。</p>';
     const p = r.payload || {};
     const rowsHtml = [
-      p.class_name ? ['类', p.class_name] : null,
-      p.signature ? ['签名', p.signature] : null,
-      p.layer ? ['分层', p.layer] : null,
-      p.module_id ? ['模块', moduleName.get(p.module_id) || `#${p.module_id}`] : null,
-    ].filter(Boolean).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('');
+      p.class_name ? ['类', `<a class="jump" href="#/structure?focus=${encodeURIComponent(p.class_name)}"
+        title="在代码结构中定位">${esc(p.class_name)}</a>`] : null,
+      p.signature ? ['签名', esc(p.signature)] : null,
+      p.layer ? ['分层', esc(p.layer)] : null,
+      p.module_id ? ['模块', esc(moduleName.get(p.module_id) || `#${p.module_id}`)] : null,
+    ].filter(Boolean).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     const jump = p.class_id
       ? `<button class="ghost" data-callers="${p.class_id}">看调用方</button>
          <button class="ghost" data-callees="${p.class_id}">看被调方</button>` : '';
@@ -851,14 +852,16 @@ async function renderImpact() {
     const flow = `
       <div class="hop-col origin">
         <p class="hop-head">起点 · 1 个类</p>
-        <div class="hop-item"><b>${esc(r.origin.name)}</b>
+        <div class="hop-item"><b><a class="jump" href="#/structure?focus=${encodeURIComponent(r.origin.name)}"
+          title="在代码结构中定位">${esc(r.origin.name)}</a></b>
           <small>${esc(r.origin.layer || '')}</small></div>
       </div>` + (hops === 0
       ? '<div class="hop-col"><p class="hop-head">无调用方</p><div class="hop-item"><small>没有类调用它，改动只影响自身。</small></div></div>'
       : byHop.slice(1).map((list, i) => `
           <div class="hop-col">
             <p class="hop-head">${i + 1} 跳 · ${list.length} 个类</p>
-            ${list.map((c) => `<div class="hop-item"><b>${esc(c.name)}</b>
+            ${list.map((c) => `<div class="hop-item"><b><a class="jump" href="#/structure?focus=${encodeURIComponent(c.name)}"
+              title="在代码结构中定位">${esc(c.name)}</a></b>
               <small>${esc(c.layer || '')}${c.module ? ' · ' + esc(c.module) : ''}</small></div>`).join('')}
           </div>`).join(''));
     const chains = (r.chains || []).map((chain) => `
@@ -1084,10 +1087,27 @@ async function render() {
   }
   if (!state.projects.length) {
     $app.innerHTML = shell(`
-      <h1>还没有工程</h1>
-      <p class="muted">先接入一个 Java 目录，或上传 zip。仓库自带示例：demo/samples/minishop。</p>
-      <button class="primary" id="first-new">接入工程</button>`);
-    document.getElementById('first-new').onclick = () => showNewProjectForm(render);
+      <section class="empty">
+        <p class="eyebrow"><i></i>00<span>开始</span></p>
+        <h1>还没有工程</h1>
+        <p class="muted">选一种接入方式，分析完成后会依次恢复模块、功能、架构与文档。</p>
+        <div class="empty-cards">
+          <button class="card" id="e-local">
+            <b>接入本地目录</b><small>服务器上已有的 Java 工程，填绝对路径</small></button>
+          <button class="card" id="e-zip">
+            <b>上传 zip</b><small>把工程打包上传，后端自动解压</small></button>
+          <button class="card" id="e-git">
+            <b>从 Git 克隆</b><small>公开仓库地址，克隆后按选定的引擎分析</small></button>
+        </div>
+        <p class="muted small">仓库自带两个示例：demo/samples/minishop（20 个类）与 demo/samples/springblade（253 个类）。</p>
+      </section>`);
+    document.getElementById('e-local').onclick = () => showNewProjectForm(render);
+    document.getElementById('e-zip').onclick = () => pickZip(render);
+    document.getElementById('e-git').onclick = () => {
+      showNewProjectForm(render);
+      const git = document.getElementById('f-git');
+      if (git) { git.focus(); git.scrollIntoView({ block: 'center' }); }
+    };
     return;
   }
   const route = currentRoute();
@@ -1120,6 +1140,22 @@ window.addEventListener('afterprint', () => {
 });
 const printBtn = document.getElementById('print-btn');
 if (printBtn) printBtn.onclick = () => window.print();
+
+/* 明暗主题：index.html 的行内脚本已按 localStorage / 系统偏好定过一次 */
+const themeBtn = document.getElementById('theme-btn');
+const themeIcon = document.getElementById('theme-icon');
+function paintThemeIcon() {
+  if (themeIcon) themeIcon.textContent = document.documentElement.dataset.theme === 'dark' ? '☀' : '☾';
+}
+if (themeBtn) {
+  paintThemeIcon();
+  themeBtn.onclick = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('theme', next);
+    paintThemeIcon();
+  };
+}
 
 /* 键盘：/ 聚焦当前页的过滤框或搜索框，Esc 清空 */
 window.addEventListener('keydown', (e) => {
