@@ -485,3 +485,34 @@ details.fold > p.muted { margin: 0 0 14px; font-size: 12px; }
 
 /* 手机上输入框字号 ≥16px，避免 iOS 聚焦时整页放大 */
 @media (max-width: 640px) { input, select { font-size: 16px; } }
+/* ---------------------------------------------------------------- 页脚 */
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  max-width: 1180px; margin: 0 auto; padding: 16px 24px 30px;
+  border-top: 1px solid var(--line-soft); margin-top: 40px;
+  font: 500 10.5px/1.6 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); flex-wrap: wrap; }
+.foot-right { display: flex; align-items: center; gap: 14px; text-transform: none;
+  letter-spacing: .04em; }
+button.link { border: none; background: none; padding: 0; height: auto; border-radius: 0;
+  font: inherit; color: var(--primary); cursor: pointer; }
+button.link:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- 打印 */
+@media print {
+  :root { --bg: #fff; --line: #c9ced3; --line-soft: #e3e6e9; }
+  body { background: #fff; }
+  .topbar, .project-bar, .foot-right, .toolbar, .toast, .loading,
+  button:not(.link), .doc-tabs { display: none !important; }
+  .app { max-width: none; padding: 0 0 12px; }
+  .foot { border-top: 1px solid #c9ced3; padding: 8px 0 0; margin-top: 18px; }
+  .numbers div, .module-grid > *, .layer, .comp, .hop-col, .panel, .stat,
+  details, table, tr { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  /* 文档本身比一页长，必须允许跨页，否则浏览器会先留一页空白 */
+  .doc-layout, .docs-wrap { display: block; }
+  .doc { max-height: none; overflow: visible; border: none; padding: 0; break-inside: auto; }
+  .doc-rail, .toc { display: none !important; }
+  .hit-detail, .doc-rail, .toc { position: static; }
+  a { color: inherit; text-decoration: none; }
+  .chip { border-color: #cfd4d8; }
+}

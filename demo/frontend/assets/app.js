@@ -998,6 +998,12 @@ function draw(body) {
     st.textContent = `SYNC · ${STATUS_LABEL[p.status] || p.status}`;
     if (dot) dot.className = `dot ${p.status === 'analyzed' ? 'ok' : ''}`;
   }
+  const foot = document.getElementById('foot-left');
+  if (foot) {
+    foot.textContent = p
+      ? `PROJECT ${p.id} · ${String(p.name).toUpperCase()} · ENGINE ${p.engine === 'joern' ? 'JOERN 4.0' : 'SELF'} · ${STATUS_LABEL[p.status] || p.status}`
+      : 'PROJECT —';
+  }
   api(`/api/projects/${state.pid}/status`).then(showProgress).catch(() => {});
 }
 
@@ -1026,4 +1032,19 @@ async function render() {
 }
 
 window.addEventListener('hashchange', render);
+
+// 打印前把所有折叠块展开，打印完还原，避免导出的 PDF 只有标题
+let printOpen = null;
+window.addEventListener('beforeprint', () => {
+  printOpen = Array.from(document.querySelectorAll('details')).map((d) => d.open);
+  document.querySelectorAll('details').forEach((d) => { d.open = true; });
+});
+window.addEventListener('afterprint', () => {
+  if (!printOpen) return;
+  document.querySelectorAll('details').forEach((d, i) => { d.open = Boolean(printOpen[i]); });
+  printOpen = null;
+});
+const printBtn = document.getElementById('print-btn');
+if (printBtn) printBtn.onclick = () => window.print();
+
 render();
