@@ -66,8 +66,8 @@ function toast(msg, ms = 2600) {
 }
 
 const VIEW_LABELS = {
-  overview: '总览', structure: '代码结构', functions: '功能需求', perspective: '语义透视',
-  architecture: '系统架构', search: '语义检索', impact: '变更影响', compare: '评测对比', docs: '文档生成',
+  overview: '总览', structure: '代码结构', functions: '功能需求', architecture: '系统架构',
+  search: '语义检索', impact: '变更影响', compare: '评测对比', docs: '文档生成',
 };
 
 function view(name) {
@@ -886,123 +886,6 @@ async function renderFunctions() {
   document.getElementById('fn-close').onclick = () => toggleAll(false);
 }
 
-/* ------------------------------------------------------- 视图：语义透视（自研） */
-// 参考同类产品的「语义层层落地」思路，但我们不画 3D：
-// 三列横向对照 WHAT（功能意图）→ HOW（架构组件）→ CODE（类与方法），
-// 点一条功能就把它的承载组件与实现类同时点亮，并给出完整证据链。
-async function renderPerspective() {
-  const [fn, arch, st] = await Promise.all([
-    api(`/api/projects/${state.pid}/functions`),
-    api(`/api/projects/${state.pid}/architecture`),
-    api(`/api/projects/${state.pid}/structure`),
-  ]);
-  const comps = (arch.layers || []).flatMap((layer) =>
-    (layer.components || []).map((c) => ({ ...c, layer: c.layer || layer.name })));
-  const classIndex = new Map();
-  (st.files || []).forEach((file) => (file.classes || []).forEach((cls) => {
-    classIndex.set(cls.name, { file, cls });
-  }));
-  const items = (fn.tree || []).flatMap((mod) => (mod.children || []).map((leaf) => {
-    const entry = String(leaf.evidence || '').split(/[（(\s]/)[0].trim();
-    const [cls, method] = entry.split('.');
-    const how = comps.find((c) => (c.classes || []).includes(cls)) || null;
-    const code = classIndex.get(cls) || null;
-    return { module: mod.name, leaf, cls, method, how, code };
-  }));
-
-  const pct = (n) => `${n}`;
-  draw(`
-    ${chainStrip('functions')}
-    <section class="head"><div><h1>语义透视</h1>
-      <p class="muted">一条功能在代码里怎么落地：<b>WHAT</b> 功能意图 → <b>HOW</b> 架构组件 → <b>CODE</b> 类与方法。
-      点左边任意一条功能，右侧两列会同时点亮对应组件与实现类。</p></div>
-      <div class="row"><span class="badge ok">${pct(items.length)} 条功能</span>
-        <span class="badge">${pct(comps.length)} 个组件</span>
-        <span class="badge">${pct(classIndex.size)} 个类</span></div></section>
-    <div class="lens-chain" id="lens-chain">
-      <span class="lens-hint">选一条功能，看它的证据链。链路里的每一段都可以继续跳转。</span>
-    </div>
-    <div class="lens" id="lens">
-      <section class="lens-col" data-col="what">
-        <header><b>WHAT</b><span>功能意图</span><small>${items.length}</small></header>
-        <div class="lens-body">
-          ${items.map((item, i) => `
-            <div class="lens-card" data-i="${i}" role="button" tabindex="0">
-              <b>${esc(item.leaf.name)}</b>
-              <small>${esc(item.module || '')}</small>
-              <code>${esc(item.cls)}${item.method ? '.' + esc(item.method) : ''}</code>
-            </div>`).join('')}
-        </div>
-      </section>
-      <section class="lens-col" data-col="how">
-        <header><b>HOW</b><span>架构组件</span><small>${comps.length}</small></header>
-        <div class="lens-body">
-          ${comps.map((c) => `
-            <div class="lens-card dim" data-cls="${esc((c.classes || []).join('|'))}" data-id="${c.id}">
-              <b>${esc(c.name)}</b>
-              <small>${esc(c.layer || '')} · ${esc(c.module || '')}</small>
-              <code>${(c.classes || []).length} 类</code>
-            </div>`).join('')}
-        </div>
-      </section>
-      <section class="lens-col" data-col="code">
-        <header><b>CODE</b><span>类与方法</span><small>${classIndex.size}</small></header>
-        <div class="lens-body">
-          ${[...classIndex.values()].map(({ file, cls }) => `
-            <div class="lens-card dim" data-name="${esc(cls.name)}">
-              <b>${esc(cls.name)}</b>
-              <small>${esc(cls.layer || '—')} · ${esc(String(file.path || '').split('/').pop())}</small>
-              <code>${(cls.methods || []).length} 方法 · L${cls.line || '—'}</code>
-            </div>`).join('')}
-        </div>
-      </section>
-    </div>`);
-
-  const chain = document.getElementById('lens-chain');
-  const lens = document.getElementById('lens');
-  const clear = () => {
-    lens.querySelectorAll('.lens-card.on').forEach((el) => el.classList.remove('on'));
-  };
-  lens.onclick = (event) => {
-    const card = event.target.closest('[data-i]');
-    const how = event.target.closest('[data-col="how"] .lens-card');
-    const code = event.target.closest('[data-col="code"] .lens-card');
-    if (card) {
-      const item = items[Number(card.dataset.i)];
-      if (!item) return;
-      clear();
-      card.classList.add('on');
-      const howCard = item.how
-        ? lens.querySelector(`[data-col="how"] [data-cls*="${item.cls}"]`) : null;
-      if (howCard) howCard.classList.add('on');
-      const codeCard = item.cls ? lens.querySelector(`[data-col="code"] [data-name="${item.cls}"]`) : null;
-      if (codeCard) codeCard.classList.add('on');
-      chain.innerHTML = `
-        <span class="lens-step what">${esc(item.leaf.name)}</span>
-        <i>→</i>
-        <span class="lens-step how">${item.how ? esc(item.how.name) : '未归入组件'}</span>
-        <i>→</i>
-        <span class="lens-step code">${esc(item.cls || '—')}${item.method ? '.' + esc(item.method) : ''}</span>
-        <span class="lens-acts">
-          <button class="ghost" id="lens-open">在代码结构里定位</button>
-          <button class="ghost" id="lens-impact">看变更影响</button>
-        </span>`;
-      document.getElementById('lens-open').onclick = () => {
-        location.hash = `#/structure?pid=${state.pid}&focus=${encodeURIComponent(item.cls || '')}`;
-      };
-      document.getElementById('lens-impact').onclick = () => {
-        location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(item.cls || '')}`
-          + (item.method ? `&m=${encodeURIComponent(item.method)}` : '');
-      };
-      return;
-    }
-    if (how || code) {
-      clear();
-      (how || code).classList.add('on');
-    }
-  };
-}
-
 /* ------------------------------------------------------------------ 视图：架构 */
 async function renderArchitecture() {
   const data = await api(`/api/projects/${state.pid}/architecture`);
@@ -1597,7 +1480,6 @@ const VIEWS = {
   overview: renderOverview,
   structure: renderStructure,
   functions: renderFunctions,
-  perspective: renderPerspective,
   architecture: renderArchitecture,
   search: renderSearch,
   impact: renderImpact,
@@ -1607,8 +1489,8 @@ const VIEWS = {
 
 const STATUS_LABEL = { analyzed: '已分析', running: '分析中', new: '待分析', pending: '待分析', failed: '失败' };
 const VIEW_NUM = {
-  overview: '01', structure: '02', functions: '03', perspective: '04',
-  architecture: '05', search: '06', impact: '07', compare: '08', docs: '09',
+  overview: '01', structure: '02', functions: '03', architecture: '04',
+  search: '05', impact: '06', compare: '07', docs: '08',
 };
 
 function draw(body) {
