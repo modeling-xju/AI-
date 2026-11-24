@@ -170,6 +170,9 @@ def functions(pid):
         children = [{"id": leaf["id"], "name": leaf["name"], "summary": leaf["summary"],
                      "evidence": leaf["evidence"], "module_id": leaf["module_id"]}
                     for leaf in leaves if leaf["parent_id"] == root["id"]]
+        # 这个模块一条功能都没恢复出来时，只剩一个空壳，前端不需要它
+        if not children:
+            continue
         tree.append({"id": root["id"], "name": root["name"], "summary": root["summary"],
                      "children": children})
     return {"tree": tree, "leaf_count": len(leaves)}

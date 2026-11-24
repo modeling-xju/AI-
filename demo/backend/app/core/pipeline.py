@@ -245,6 +245,65 @@ def _build_graph(pid, scan=None):
     return adjacency, labels, quality, package_labels, classes, dep_edges
 
 
+GENERIC_MODULE_NAMES = {"功能模块", "模块", "其他", "未命名"}
+# 包名末段 → 更具体的模块名；查不到再用分层兜底
+PACKAGE_NOUNS = {
+    "mapper": "数据访问", "dao": "数据访问", "repository": "数据访问", "jdbc": "数据访问",
+    "entity": "数据模型", "model": "数据模型", "pojo": "数据模型", "dto": "数据模型",
+    "vo": "数据模型", "param": "参数模型", "params": "参数模型",
+    "util": "工具方法", "utils": "工具方法", "tool": "工具方法", "helper": "工具方法",
+    "config": "配置装配", "properties": "配置装配", "launcher": "启动装配",
+    "feign": "远程调用", "client": "远程调用", "provider": "远程调用",
+    "cache": "缓存", "redis": "缓存",
+    "handler": "请求处理", "filter": "请求处理", "interceptor": "请求处理", "advice": "请求处理",
+    "controller": "接口", "web": "接口", "endpoint": "接口", "resource": "接口",
+    "service": "业务逻辑", "impl": "业务逻辑", "biz": "业务逻辑",
+    "exception": "异常处理", "wrapper": "视图装配", "support": "支撑组件",
+}
+LAYER_MODULE_NAMES = {"接入层": "接口模块", "业务层": "业务模块", "数据层": "数据模块",
+                      "领域层": "领域模块", "公共层": "公共模块", "其他": "杂项模块"}
+
+
+def _package_domain(members):
+    """包名里的业务域：跳过 org/公司名后取第一个有意义的段（develop / seata.storage / common）。"""
+    votes = {}
+    for member in members:
+        parts = [part for part in (member.get("package") or "").split(".") if part]
+        if len(parts) >= 3:
+            domain = parts[2]
+            if domain not in ("core", "common"):
+                votes[domain] = votes.get(domain, 0) + 1
+    if votes:
+        return max(votes.items(), key=lambda kv: kv[1])[0]
+    return ""
+
+
+def _package_module_name(members):
+    """从成员的包名末段里挑一个最常见的语义词，给泛称模块换一个具体的名字。"""
+    votes = {}
+    for member in members:
+        parts = [part for part in (member.get("package") or "").split(".") if part]
+        for part in reversed(parts[-3:]):
+            noun = PACKAGE_NOUNS.get(part.lower())
+            if noun:
+                votes[noun] = votes.get(noun, 0) + 1
+                break
+    base = ""
+    if votes:
+        base = max(votes.items(), key=lambda kv: kv[1])[0]
+    else:
+        layers = [member.get("layer") for member in members if member.get("layer")]
+        if layers:
+            layer = max(set(layers), key=layers.count)
+            base = LAYER_MODULE_NAMES.get(layer, "")
+    # 只有分类词（业务逻辑、数据访问…）时前面补业务域，"业务逻辑" 与 "业务逻辑（service）"
+    # 这种看着像重名的模块就能区分开
+    domain = _package_domain(members)
+    if base and domain and domain.lower() not in base.lower():
+        return "%s·%s" % (domain, base)
+    return base
+
+
 def _store_modules(pid, adjacency, labels, classes):
     db.execute("DELETE FROM modules WHERE project_id=?", (pid,))
     by_id = {cls["id"]: cls for cls in classes}
@@ -278,6 +337,9 @@ def _store_modules(pid, adjacency, labels, classes):
     for community in sorted(set(labels.values())):
         members = [by_id[node] for node, label in labels.items() if label == community]
         name, evidence = named.get(community, ("功能模块", ""))
+        # 「功能模块」这类泛称信息量为零：优先按包名后缀换成更具体的词，再退化到分层
+        if name in GENERIC_MODULE_NAMES:
+            name = _package_module_name(members) or name
         # 大工程里不同社区常被命名成同一个词，用包名片段区分，避免「用户管理 ×3」
         if name in used_names:
             packages = [m.get("package") or "" for m in members]
@@ -322,7 +384,8 @@ def _store_functions(pid):
     for module in modules:
         methods = db.query(
             "SELECT m.id, m.name, m.return_type, m.params, m.is_public, m.doc, m.line, "
-            "c.name AS class_name, c.layer FROM methods m JOIN classes c ON c.id=m.class_id "
+            "c.name AS class_name, c.layer, c.package AS package "
+            "FROM methods m JOIN classes c ON c.id=m.class_id "
             "WHERE m.project_id=? AND c.module_id=?", (pid, module["id"]))
         candidates = [m for m in methods
                       if m["is_public"] and not _is_accessor(m)
@@ -344,10 +407,33 @@ def _store_functions(pid):
         entry = "%s.%s" % (method["class_name"], method["name"])
         entries.append({"id": method["id"], "label": label, "entry": entry,
                         "return_type": method["return_type"], "module_id": module["id"],
-                        "line": method["line"]})
+                        "line": method["line"], "package": method["package"] or "",
+                        "layer": method["layer"] or ""})
         rows.append(item)
 
     summaries = knowledge.summarize_functions(entries)
+
+    # 同一件事在接入层、业务层、实现类里各出现一次（创建订单 → Controller / Service / Impl），
+    # 对「功能」来说是一个能力，只保留最靠近入口的那条，其余视为实现细节。
+    by_label = {}
+    for entry in entries:
+        by_label.setdefault((entry["module_id"], entry["label"]), []).append(entry)
+    drop = set()
+    for group in by_label.values():
+        classes = {entry["entry"].split(".")[0] for entry in group}
+        layers = {entry.get("layer") or "" for entry in group}
+        # 只有「跨层同名」才算同一件事的不同实现；同层的多个类（各类 TokenGranter）
+        # 是并列能力，不能合并
+        if len(group) > 1 and len(classes) > 1 and len(layers) > 1:
+            keep = min(group, key=lambda e: (LAYER_RANK.get(e.get("layer"), 9), e["line"]))
+            for entry in group:
+                if entry is not keep:
+                    drop.add(id(entry))
+    if drop:
+        # entries 与 rows 一一对应，删条目时必须同步删行，否则后面按索引写库会错位
+        kept = [(entry, row) for entry, row in zip(entries, rows) if id(entry) not in drop]
+        entries = [entry for entry, _ in kept]
+        rows = [row for _, row in kept]
 
     # 同一模块里重名时补类名；同一个类的重载仍重名时补行号。
     # 两轮都以「原始标签」为基准，避免出现「xxx（A）（第 3 行）」这种叠加。
@@ -359,14 +445,38 @@ def _store_functions(pid):
             groups.setdefault((entry["module_id"], entry["label"]), []).append(entry)
         return [g for g in groups.values() if len(g) > 1]
 
+    SKIP_SEGMENTS = {"com", "org", "cn", "io", "net", "java", "main", "controller", "impl",
+                     "service", "mapper", "dao", "web", "api", "rest", "provider"}
+
+    def pkg_hint(pkg):
+        """挑一个能区分同名类的包名片段（demo / desk / seata…）。"""
+        parts = [part for part in (pkg or "").split(".") if part]
+        for part in reversed(parts):
+            if part.lower() not in SKIP_SEGMENTS:
+                return part
+        return parts[-1] if parts else ""
+
+    def short_pkg(pkg):
+        """包名末两段，用来区分不同包里同名的类（desk.controller / demo.controller）。"""
+        parts = [part for part in (pkg or "").split(".") if part]
+        return ".".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
+
     for group in dup_groups():
+        classes = {entry["entry"].split(".")[0] for entry in group}
+        hints = {pkg_hint(entry.get("package")) for entry in group}
         for entry in group:
             cls = entry["entry"].split(".")[0]
-            entry["label"] = "%s（%s）" % (origin[id(entry)], cls)
+            # 同名类分布在不同的包里（SpringBlade 里 NoticeController 就有两份）：
+            # 用包名里的业务域区分，比只差一个行号更容易看懂
+            if len(classes) == 1 and len(hints) > 1:
+                entry["label"] = "%s（%s.%s）" % (origin[id(entry)], pkg_hint(entry.get("package")), cls)
+            else:
+                entry["label"] = "%s（%s）" % (origin[id(entry)], cls)
     for group in dup_groups():
+        # 同一个类里有多个方法被命名成同一个中文短语时，用方法名区分，
+        # 比只给行号更说明「这是另一个方法」而不是重复。
         for entry in group:
-            cls = entry["entry"].split(".")[0]
-            entry["label"] = "%s（%s 第 %s 行）" % (origin[id(entry)], cls, entry["line"])
+            entry["label"] = "%s（%s）" % (origin[id(entry)], entry["entry"])
 
     leaves = 0
     for module in modules:
