@@ -69,8 +69,6 @@ const VIEW_LABELS = {
 
 function view(name) {
   $nav.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
-  const crumb = document.getElementById('crumb');
-  if (crumb) crumb.textContent = VIEW_LABELS[name] || name;
 }
 
 function currentRoute() {
@@ -94,7 +92,7 @@ function shell(body) {
     <div class="project-bar">
       <label>当前工程
         <select id="pid-select">${state.projects.map((p) =>
-          `<option value="${p.id}" ${p.id === state.pid ? 'selected' : ''}>${esc(p.name)}（${p.status}）</option>`
+          `<option value="${p.id}" ${p.id === state.pid ? 'selected' : ''}>${esc(p.name)}（${STATUS_LABEL[p.status] || p.status}）</option>`
         ).join('')}</select>
       </label>
       <button class="ghost" id="btn-new">接入新工程</button>
@@ -262,7 +260,12 @@ async function renderOverview() {
     <section class="head">
       <div><h1>${esc(p.name)}</h1><p class="muted">${esc(p.root)}</p>
         ${projectMeta(p)}</div>
-      <span class="badge ${p.status === 'analyzed' ? 'ok' : ''}">${esc(p.status)}</span>
+      <div class="hud-block">
+        <div><span>CPG</span><i></i><b>${p.graph_nodes ? `${p.graph_nodes} nodes` : 'not exported'}</b></div>
+        <div><span>EDGES</span><i></i><b>${p.graph_edges ? `${p.graph_edges} edges` : '—'}</b></div>
+        <div><span>MODULES</span><i></i><b>${data.modules.length} groups</b></div>
+        <div><span>RECOVERY</span><i></i><b>${data.function_count} leaves</b></div>
+      </div>
     </section>
     <div class="stats">${metrics}</div>
     <h2>模块划分</h2>
@@ -778,21 +781,24 @@ const VIEWS = {
 };
 
 const STATUS_LABEL = { analyzed: '已分析', running: '分析中', new: '待分析', pending: '待分析', failed: '失败' };
+const VIEW_NUM = {
+  overview: '01', structure: '02', functions: '03', architecture: '04',
+  search: '05', impact: '06', compare: '07', docs: '08',
+};
 
 function draw(body) {
-  $app.innerHTML = shell(body);
+  const name = currentRoute().name in VIEW_LABELS ? currentRoute().name : 'overview';
+  const eyebrow = `<p class="eyebrow"><i></i>${VIEW_NUM[name]}<span>${esc(VIEW_LABELS[name])}</span></p>`;
+  $app.innerHTML = shell(eyebrow + body);
   bindProjectBar(render);
-  const meta = document.getElementById('top-meta');
-  if (meta) {
-    const p = state.projects.find((x) => x.id === state.pid);
-    if (p) {
-      const engine = p.engine === 'joern' ? 'Joern CPG' : '自研解析器';
-      meta.innerHTML = `<span class="meta-item">${esc(p.name)}</span>
-        <span class="meta-item">${esc(engine)}</span>
-        <span class="badge ${p.status === 'analyzed' ? 'ok' : ''}">${esc(STATUS_LABEL[p.status] || p.status)}</span>`;
-    } else {
-      meta.innerHTML = '';
-    }
+  const p = state.projects.find((x) => x.id === state.pid);
+  const eng = document.getElementById('hud-engine');
+  const st = document.getElementById('hud-status');
+  const dot = document.querySelector('#hud .dot');
+  if (p && eng && st) {
+    eng.textContent = `ENGINE · ${p.engine === 'joern' ? 'JOERN 4.0' : 'SELF'}`;
+    st.textContent = `SYNC · ${STATUS_LABEL[p.status] || p.status}`;
+    if (dot) dot.className = `dot ${p.status === 'analyzed' ? 'ok' : ''}`;
   }
   api(`/api/projects/${state.pid}/status`).then(showProgress).catch(() => {});
 }
