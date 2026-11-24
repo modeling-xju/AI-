@@ -309,13 +309,16 @@ function structureGroups(data, query) {
   return [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
 }
 
+const NON_MODULE_DIRS = new Set(['src', 'com', 'org', 'cn', 'net', 'io', 'java', 'main']);
+
 /** 目录标签：保留模块名 + 末两段包名，避免满屏 controller 分不清来源。 */
 function groupLabel(dir) {
   if (dir === '（根目录）') return dir;
   const parts = dir.split('/').filter(Boolean);
   const tail = parts.slice(-2).join('/');
-  const module = parts[0];
-  return module && module !== tail.split('/')[0] ? `${module} / ${tail}` : tail;
+  const head = parts[0] || '';
+  if (!head || NON_MODULE_DIRS.has(head.toLowerCase())) return tail;
+  return head === tail.split('/')[0] ? tail : `${head} / ${tail}`;
 }
 
 function methodItem(m) {
@@ -345,7 +348,8 @@ function structureHtml(data, query, expand) {
   // 两级分组：模块（顶层目录）→ 包目录 → 文件 → 类
   const modules = new Map();
   groups.forEach(([dir, files]) => {
-    const module = dir === '（根目录）' ? dir : dir.split('/')[0];
+    const head = dir === '（根目录）' ? dir : dir.split('/')[0];
+    const module = NON_MODULE_DIRS.has(head.toLowerCase()) ? '（主工程）' : head;
     if (!modules.has(module)) modules.set(module, []);
     modules.get(module).push([dir, files]);
   });
