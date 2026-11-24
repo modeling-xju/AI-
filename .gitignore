@@ -1,0 +1,25 @@
+# 工具与大文件：Joern / JDK（约 4.2 GB），按 docs/系统框架设计.md 第 9 节安装到 tools/
+tools/
+
+# 运行产物：SQLite 库、CPG 二进制、Joern 工作目录、上传解压的工程
+demo/data/
+
+# 截图与录屏，本地产物
+demo/shots/
+
+# 第三方示例：SpringBlade 体积大且有独立许可，用 demo/scripts/fetch_springblade.py 拉取
+demo/samples/springblade/
+
+# 常规忽略
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.memsearch/
+.DS_Store
+Thumbs.db
+node_modules/
+*.log
+.idea/
+.vscode/
