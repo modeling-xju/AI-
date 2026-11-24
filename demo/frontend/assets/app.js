@@ -535,13 +535,19 @@ async function renderFunctions() {
 /* ------------------------------------------------------------------ 视图：架构 */
 async function renderArchitecture() {
   const data = await api(`/api/projects/${state.pid}/architecture`);
+  const chipList = (list, limit = 8) => {
+    const shown = list.slice(0, limit);
+    const rest = list.slice(shown.length);
+    return shown.map((x) => `<span class="chip">${esc(x)}</span>`).join('') +
+      (rest.length ? `<span class="chip more" data-more="${rest.map(esc).join('|')}">+${rest.length}</span>` : '');
+  };
   const cols = data.layers.map((layer) => `
     <div class="layer">
       <h4>${esc(layer.name)}</h4>
       ${layer.components.map((c) => `
         <div class="comp">
           <b>${esc(c.name)}</b><small>${c.classes.length} 类</small>
-          <p class="classes">${c.classes.map((x) => `<span class="chip">${esc(x)}</span>`).join('')}</p>
+          <p class="classes">${chipList(c.classes)}</p>
           <p class="dep">${c.depends_on.length ? '→ 依赖 ' + c.depends_on.map(esc).join('、') : '→ 最底层，无传出依赖'}</p>
         </div>`).join('')}
     </div>`).join('');
@@ -566,22 +572,38 @@ async function renderArchitecture() {
       <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div></section>
     <h2>入口与关键路径</h2>
     <ul class="plain chains">${entries || '<li class="muted">暂无关键路径</li>'}</ul>
+    <h2>分层组件</h2>
     <div class="layers">${cols || '<p class="muted">暂无架构视图</p>'}</div>
-    <h2>层间依赖矩阵</h2>
-    <table class="matrix"><thead><tr><th>调用方 ↓ / 被调 ↑</th>${matrixHead}</tr></thead>
-      <tbody>${matrixRows || '<tr><td class="muted">暂无数据</td></tr>'}</tbody></table>
-    <p class="muted">格子里的数字是跨层的类级调用条数；对角线表示层内调用。</p>
-    <h2>组件—功能对齐</h2>
-    <table class="modules"><thead><tr><th>组件</th><th>层</th><th>承载的功能条目</th></tr></thead>
-      <tbody>${align || '<tr><td colspan="3" class="muted">暂无功能条目</td></tr>'}</tbody></table>`);
+    <details class="fold">
+      <summary>层间依赖矩阵 <span class="muted">${matrix.layers.length} × ${matrix.layers.length}</span></summary>
+      <table class="matrix"><thead><tr><th>调用方 ↓ / 被调 ↑</th>${matrixHead}</tr></thead>
+        <tbody>${matrixRows || '<tr><td class="muted">暂无数据</td></tr>'}</tbody></table>
+      <p class="muted">格子里的数字是跨层的类级调用条数；对角线表示层内调用。</p>
+    </details>
+    <details class="fold">
+      <summary>组件—功能对齐 <span class="muted">${data.component_functions.length} 组</span></summary>
+      <table><thead><tr><th>组件</th><th>层</th><th>承载的功能条目</th></tr></thead>
+        <tbody>${align || '<tr><td colspan="3" class="muted">暂无功能条目</td></tr>'}</tbody></table>
+    </details>`);
+
+  // 组件里的类 chip 也支持 +N 就地展开
+  document.querySelectorAll('.layers .chip.more').forEach((el) => {
+    el.onclick = () => {
+      const names = (el.dataset.more || '').split('|').filter(Boolean);
+      el.insertAdjacentHTML('beforebegin', names.map((n) => `<span class="chip">${esc(n)}</span>`).join(''));
+      el.remove();
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ 视图：检索 */
 async function renderSearch() {
   const { mode } = state.search;
-  const [structure] = await Promise.all([
+  const [structure, overview] = await Promise.all([
     api(`/api/projects/${state.pid}/structure`),
+    api(`/api/projects/${state.pid}/overview`),
   ]);
+  const moduleName = new Map((overview.modules || []).map((m) => [m.id, m.name]));
   // 没输入过就按工程规模给一个像样的默认查询：小工程找购物车，大工程找登录
   const fallback = structure.classes_total > 100 ? '登录' : '加入购物车';
   const q = state.search.q || fallback;
@@ -593,13 +615,37 @@ async function renderSearch() {
   const options = classes.map((c) =>
     `<option value="${c.id}" ${c.id === state.graph.cls ? 'selected' : ''}>${esc(c.name)}（${esc(c.layer)}）</option>`).join('');
 
-  const rows = data.results.map((r) => `
-    <li class="hit">
-      <div class="hit-head"><span class="badge">${esc(r.kind)}</span>
-        <b>${esc(r.title)}</b><span class="muted">${esc(r.subtitle || '')}</span>
-        <span class="score">${fmt(r.score, 3)}</span></div>
-      <p class="snippet">${esc(r.snippet)}</p>
+  const results = data.results || [];
+  const sel = Math.min(state.searchSel || 0, Math.max(results.length - 1, 0));
+  state.searchSel = sel;
+  const rows = results.map((r, i) => `
+    <li class="hit-row ${i === sel ? 'on' : ''}" data-i="${i}">
+      <span class="badge">${esc(r.kind)}</span>
+      <b>${esc(r.title)}</b>
+      <span class="score">${fmt(r.score, 3)}</span>
+      <span class="sub">${esc(r.subtitle || '')}</span>
     </li>`).join('');
+
+  const detailHtml = (r) => {
+    if (!r) return '<p class="muted">没有命中，换个说法试试。</p>';
+    const p = r.payload || {};
+    const rowsHtml = [
+      p.class_name ? ['类', p.class_name] : null,
+      p.signature ? ['签名', p.signature] : null,
+      p.layer ? ['分层', p.layer] : null,
+      p.module_id ? ['模块', moduleName.get(p.module_id) || `#${p.module_id}`] : null,
+    ].filter(Boolean).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('');
+    const jump = p.class_id
+      ? `<button class="ghost" data-callers="${p.class_id}">看调用方</button>
+         <button class="ghost" data-callees="${p.class_id}">看被调方</button>` : '';
+    return `
+      <p class="d-kind"><span class="badge">${esc(r.kind)}</span> <b>${esc(r.title)}</b>
+        <span class="score">${fmt(r.score, 3)}</span></p>
+      <p class="muted d-sub">${esc(r.subtitle || '')}</p>
+      <div class="kv">${rowsHtml}</div>
+      <p class="snippet">${esc(r.snippet || '')}</p>
+      <div class="d-actions">${jump}</div>`;
+  };
   const modeLabel = { fusion: '融合排序', bm25: 'BM25', vector: '向量', keyword: '关键词' }[mode] || mode;
   const quick = ['登录', '订单', '菜单', '令牌', '用户', '租户'];
   const quickChips = quick.map((w) =>
@@ -638,10 +684,13 @@ async function renderSearch() {
       <button class="primary" type="submit">检索</button>
     </form>
     <div class="hit-meta">
-      <span class="muted">命中 <b>${data.results.length}</b> 条 · 模式 ${esc(modeLabel)}</span>
+      <span class="muted">命中 <b>${results.length}</b> 条 · 模式 ${esc(modeLabel)}</span>
       <span class="quick">${quickChips}</span>
     </div>
-    <ul class="hits">${rows || '<li class="muted">没有命中，换个说法试试</li>'}</ul>
+    <div class="search-layout">
+      <ul class="hits compact" id="hit-list">${rows || '<li class="muted">没有命中，换个说法试试</li>'}</ul>
+      <aside class="hit-detail" id="hit-detail">${detailHtml(results[sel])}</aside>
+    </div>
 
     <h2>调用链查询</h2>
     <div class="form-panel inline">
@@ -663,14 +712,45 @@ async function renderSearch() {
   form.onsubmit = (e) => {
     e.preventDefault();
     state.search = { q: document.getElementById('q').value.trim() || '加入购物车', mode: document.getElementById('mode').value };
+    state.searchSel = 0;
     renderSearch();
   };
   document.querySelectorAll('.hit-meta .chip.quick').forEach((el) => {
     el.onclick = () => {
       state.search = { q: el.dataset.q, mode: state.search.mode };
+      state.searchSel = 0;
       renderSearch();
     };
   });
+
+  // 左列表 / 右详情：切换只重绘右侧，不重新请求
+  const list = document.getElementById('hit-list');
+  const det = document.getElementById('hit-detail');
+  const bindDetail = () => {
+    det.querySelectorAll('[data-callers],[data-callees]').forEach((btn) => {
+      btn.onclick = () => {
+        const callers = btn.hasAttribute('data-callers');
+        state.graph = {
+          op: callers ? 'callers' : 'callees',
+          cls: Number(callers ? btn.dataset.callers : btn.dataset.callees) || 0,
+          from: '', to: '',
+        };
+        renderSearch();
+      };
+    });
+  };
+  if (list) {
+    list.querySelectorAll('.hit-row').forEach((el) => {
+      el.onclick = () => {
+        const i = Number(el.dataset.i);
+        state.searchSel = i;
+        list.querySelectorAll('.hit-row').forEach((x) => x.classList.toggle('on', x === el));
+        det.innerHTML = detailHtml(results[i]);
+        bindDetail();
+      };
+    });
+  }
+  bindDetail();
   document.getElementById('g-go').onclick = () => {
     state.graph = {
       op: document.getElementById('g-op').value,
