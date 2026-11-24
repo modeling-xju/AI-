@@ -82,12 +82,15 @@ def _store_structure(pid):
     _resolve_calls(pid)
     # 解析不到、但能看出是基础设施的调用，记为外部依赖
     external_rows = []
-    for row in db.query("SELECT callee_name, qualifier FROM calls WHERE project_id=? "
+    kind_updates = []
+    for row in db.query("SELECT id, callee_name, qualifier FROM calls WHERE project_id=? "
                         "AND callee_id IS NULL", (pid,)):
         token = row["qualifier"] or row["callee_name"]
         kind = _external_kind(token)
         if kind != "第三方库":
             external_rows.append((token, kind))
+            kind_updates.append((kind, row["id"]))
+    db.execute_many("UPDATE calls SET external_kind=? WHERE id=?", kind_updates)
     _store_externals(pid, external_rows)
     return len(class_rows), len(rows), len(call_rows)
 
@@ -578,7 +581,8 @@ def _store_joern(pid, data, docs=None):
         if not caller:
             continue
         callee = full_index.get(_class_full_name(call["callee"]))
-        call_rows.append((pid, caller, call["name"], callee, call["line"]))
+        kind = ""
+        name = call["name"]
         if callee is None:
             raw = call.get("callee") or ""
             simple = _class_full_name(raw).rsplit(".", 1)[-1]
@@ -586,8 +590,12 @@ def _store_joern(pid, data, docs=None):
                 kind = _external_kind(raw)
                 if kind != "第三方库":  # 只留能归类的基础设施调用，JDK 类型不算外部依赖
                     external_rows.append((simple, kind))
-    db.execute_many("INSERT INTO calls(project_id, caller_id, callee_name, callee_id, line) "
-                    "VALUES(?,?,?,?,?)", call_rows)
+                    name = simple  # 外部调用记依赖名，而不是方法名
+                else:
+                    kind = ""
+        call_rows.append((pid, caller, name, callee, call["line"], kind))
+    db.execute_many("INSERT INTO calls(project_id, caller_id, callee_name, callee_id, line, external_kind) "
+                    "VALUES(?,?,?,?,?,?)", call_rows)
     _store_externals(pid, external_rows)
 
     counts = data["counts"]
@@ -595,24 +603,9 @@ def _store_joern(pid, data, docs=None):
     return len(rows), len(method_rows), len(call_rows)
 
 
-EXTERNAL_KINDS = (
-    (("redis", "lettuce", "jedis"), "缓存"),
-    (("kafka", "rabbit", "rocketmq", "amqp", "pulsar", "mq"), "消息"),
-    (("feign", "ribbon", "httpclient", "resttemplate", "okhttp", "webclient"), "远程调用"),
-    (("oss", "minio", "s3", "cos", "obs"), "对象存储"),
-    (("mail", "sms", "push"), "通知"),
-    (("mybatis", "mapper", "jdbc", "datasource", "sqlsession"), "数据访问"),
-)
-
-
-def _external_kind(text):
-    """按包名/类名的整段前缀判断，避免 nacos 里的 cos、constant 里的 st 之类的误命中。"""
-    parts = re.split(r"[.\s:/()<>\[\],$]+", (text or "").lower())
-    for tokens, kind in EXTERNAL_KINDS:
-        for token in tokens:
-            if any(part == token or part.startswith(token) for part in parts):
-                return kind
-    return "第三方库"
+# 外部依赖的分类规则与判定在 codegraph 里，这里只保留别名，避免两处维护
+EXTERNAL_KINDS = codegraph.EXTERNAL_KINDS
+_external_kind = codegraph.external_kind
 
 
 def _store_externals(pid, rows):

@@ -4,9 +4,30 @@
 只依赖标准库：图用 {节点: {邻居: 权重}} 表示，节点是类 id。
 """
 import random
+import re
 from collections import defaultdict
 
 from .. import db
+
+# 外部依赖的分类规则：按包名/类名的整段前缀匹配（见 external_kind）
+EXTERNAL_KINDS = (
+    (("redis", "lettuce", "jedis"), "缓存"),
+    (("kafka", "rabbit", "rocketmq", "amqp", "pulsar", "mq"), "消息"),
+    (("feign", "ribbon", "httpclient", "resttemplate", "okhttp", "webclient"), "远程调用"),
+    (("oss", "minio", "s3", "cos", "obs"), "对象存储"),
+    (("mail", "sms", "push"), "通知"),
+    (("mybatis", "mapper", "jdbc", "datasource", "sqlsession"), "数据访问"),
+)
+
+
+def external_kind(text):
+    """按包名/类名的整段前缀判断，避免 nacos 里的 cos、constant 里的 st 之类的误命中。"""
+    parts = re.split(r"[.\s:/()<>\[\],$]+", (text or "").lower())
+    for tokens, kind in EXTERNAL_KINDS:
+        for token in tokens:
+            if any(part == token or part.startswith(token) for part in parts):
+                return kind
+    return "第三方库"
 
 LAYER_RULES = [
     ("接入层", ("controller", "resource", "handler", "endpoint", "api", "filter")),
@@ -485,21 +506,30 @@ def shortest_path(pid, src_name, dst_name):
 
 
 def critical_paths(pid, limit=3):
-    """关键路径：从接入层入口出发，沿调用图找最长的一条链（入口 → 核心流程）。"""
+    """关键路径：从接入层入口出发，沿调用图找最长的链，链尾落到外部依赖的优先。
+
+    返回每条链 = 类节点（带 layer 与自身的外部依赖）+ 链尾之外的外部依赖节点（layer=外部依赖）。
+    """
     by_id, out_edges, _ = class_graph(pid)
     if not by_id:
         return []
     entries = [row["id"] for row in by_id.values() if row["layer"] == "接入层"]
     if not entries:
         entries = [row["id"] for row in by_id.values() if not _in_degree(by_id, out_edges)[row["id"]]]
+    ext_map = external_calls_of(pid, list(by_id))
+
+    def score(path):
+        hops = len(path) - 1
+        touched = sum(1 for node in path if ext_map.get(node))
+        return (hops, touched)
 
     def longest(start):
-        best, best_path = 0, [start]
+        best, best_path = (-1, -1), [start]
         stack = [(start, [start])]
         while stack:
             node, path = stack.pop()
-            if len(path) - 1 > best:
-                best, best_path = len(path) - 1, list(path)
+            if score(path) > best:
+                best, best_path = score(path), list(path)
             for nxt in sorted(out_edges.get(node, ())):
                 if nxt in path:  # 防环
                     continue
@@ -511,12 +541,49 @@ def critical_paths(pid, limit=3):
         path = longest(entry)
         if len(path) > 1:
             chains.append(path)
-    chains.sort(key=lambda item: -len(item))
+    chains.sort(key=lambda item: score(item), reverse=True)
     result = []
     for chain in chains[:limit]:
-        result.append([{"id": node, "name": by_id[node]["name"], "layer": by_id[node]["layer"]}
-                       for node in chain])
+        nodes = [{"id": node, "name": by_id[node]["name"], "layer": by_id[node]["layer"],
+                  "externals": ext_map.get(node, [])} for node in chain]
+        # 链尾如果本身就调外部依赖，把依赖作为路径的终点补上（入口 → 核心流程 → 外部依赖）
+        for extra in ext_map.get(chain[-1], [])[:2]:
+            nodes.append({"id": 0, "name": extra["name"], "kind": extra["kind"],
+                          "layer": "外部依赖", "externals": [], "synthetic": True})
+        # Feign / Client 接口本身代表一次跨进程调用，链尾补一个「远程服务」终点
+        if tail_is_remote(nodes[-1]["name"]):
+            nodes.append({"id": 0, "name": "远程服务", "kind": "远程调用",
+                          "layer": "外部依赖", "externals": [], "synthetic": True})
+        result.append(nodes)
     return result
+
+
+def tail_is_remote(name):
+    """Feign / Client 接口的调用终点在进程外，链路末端补一个远程服务节点。"""
+    return bool(name) and name.endswith(("Client", "Feign", "ClientImpl"))
+
+
+def external_calls_of(pid, class_ids):
+    """链上每个类调到的外部依赖：calls 里没解析到具体类的调用，归类后按类聚合。
+
+    返回 {class_id: [{"name": ..., "kind": ...}]}，同一名字只留一次。
+    """
+    ids = [int(x) for x in dict.fromkeys(class_ids) if x]
+    if not ids:
+        return {}
+    rows = db.query(
+        "SELECT DISTINCT caller_id, callee_name, external_kind FROM calls "
+        "WHERE project_id=? AND callee_id IS NULL AND IFNULL(external_kind,'')<>'' "
+        "AND caller_id IN (%s)" % ",".join("?" * len(ids)),
+        [pid, *ids])
+    found = defaultdict(dict)
+    for row in rows:
+        name = (row["callee_name"] or "").split("(")[0].strip()
+        if not name:
+            continue
+        found[row["caller_id"]].setdefault(name, row["external_kind"])
+    return {cid: [{"name": name, "kind": kind} for name, kind in sorted(items.items())][:4]
+            for cid, items in found.items()}
 
 
 def _in_degree(by_id, out_edges):

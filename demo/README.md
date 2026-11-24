@@ -96,7 +96,7 @@ demo/
 | GET | `/api/projects/{pid}/overview` | 指标、构建方式/语言构成、模块划分、产物计数 |
 | GET | `/api/projects/{pid}/structure` | 文件（分类）→ 类 → 方法（分支/循环/捕获）→ 调用点 |
 | GET | `/api/projects/{pid}/functions` | 功能树（一级模块 + 二级条目） |
-| GET | `/api/projects/{pid}/architecture` | 分层组件、层间依赖矩阵、组件—功能映射、入口关键路径、外部依赖 |
+| GET | `/api/projects/{pid}/architecture` | 分层组件、层间依赖矩阵、组件—功能映射、关键路径（含链上外部依赖与 Feign 远程终点）、外部依赖汇总 |
 | GET | `/api/projects/{pid}/compare` | 模块度、NMI、检索评测 |
 | GET | `/api/projects/{pid}/search?q=&mode=&k=` | `mode=bm25\|keyword\|vector\|fusion` |
 | GET | `/api/projects/{pid}/graph?op=callers\|callees\|path&class=&from=&to=` | 知识库图查询：谁调用它 / 它调用谁 / 两类间最短调用链 |
@@ -111,8 +111,7 @@ demo/
 20 个类、90 个方法、70 个可解析调用点；内置 `pom.xml`，因此识别为 maven 工程，
 1 个测试文件不计入分析、1 个配置文件计入分类。Louvain 得到 3 个社区，模块度 Q=0.533，
 与包结构划分的 NMI=0.135（包结构模块度 −0.226），平均内聚 0.571；功能树 3 个一级模块、20 条二级功能；
-层间依赖矩阵 6×6、入口关键路径 3 条（5/4/4 跳）；
-属性图 246 节点 / 372 边（AST 156、CALL 70、CFG 88、CDG 21、DDG 7、REF 30）；
+层间依赖矩阵 6×6、入口关键路径 3 条（4/3/3 跳，按边数计）；属性图 246 节点 / 372 边（AST 156、CALL 70、CFG 88、CDG 21、DDG 7、REF 30）；
 检索 Recall@5：融合 100%、BM25 75%、向量 75%、整串关键词 45%（20 条功能条目查询）。
 
 ## 大示例：SpringBlade（engine=joern）

@@ -630,4 +630,7 @@ details.hl > summary { border-radius: 3px; }
 /* 外部依赖 chip：名字 + 类型与次数 */
 .chips.externals { margin: 2px 0 6px; }
 .chips.externals .chip { gap: 6px; }
-.chips.externals .chip em { font-style: normal; color: var(--faint); }
+.chips.externals .chip em { font-style: normal; color: var(--faint); margin-left: 6px; }
+.chip.ext, .chip.ext-s { border-style: dashed; color: var(--faint); }
+.chip.ext-s { font-size: 10.5px; }
+.chains .chip em { font-style: normal; margin-left: 6px; color: var(--faint); font-size: 10.5px; }

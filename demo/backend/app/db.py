@@ -102,7 +102,8 @@ CREATE TABLE IF NOT EXISTS calls (
     callee_name TEXT NOT NULL,
     qualifier   TEXT DEFAULT '',
     callee_id   INTEGER,
-    line        INTEGER DEFAULT 0
+    line        INTEGER DEFAULT 0,
+    external_kind TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS modules (
@@ -186,6 +187,7 @@ MIGRATIONS = {
                  "graph_nodes": "INTEGER DEFAULT 0", "graph_edges": "INTEGER DEFAULT 0",
                  "engine": "TEXT DEFAULT 'self'"},
     "files": {"category": "TEXT DEFAULT '源码'"},
+    "calls": {"external_kind": "TEXT DEFAULT ''"},
     "methods": {"branches": "INTEGER DEFAULT 0", "loops": "INTEGER DEFAULT 0",
                 "catches": "INTEGER DEFAULT 0"},
 }

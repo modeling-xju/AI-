@@ -606,10 +606,22 @@ async function renderArchitecture() {
         </div>`).join('')}
     </div>`).join('');
 
-  const entries = (data.entries || []).map((chain, i) => `
+  const chainChip = (node) => {
+    if (node.synthetic) {
+      return `<span class="chip ext" title="${esc(node.kind || '外部依赖')}">⇢ ${esc(node.name)}</span>`;
+    }
+    const exts = (node.externals || []).map((x) =>
+      `<em title="${esc(x.kind)}">⇢ ${esc(x.name)}</em>`).join('');
+    return `<span class="chip">${esc(node.name)}${exts}</span>`;
+  };
+  const entries = (data.entries || []).map((chain, i) => {
+    const hops = chain.filter((n) => !n.synthetic).length - 1;
+    const tail = chain[chain.length - 1];
+    return `
     <li><span class="muted">链路 ${i + 1}</span>
-      ${chain.map((node) => `<span class="chip">${esc(node.name)}</span>`).join('<span class="arrow">→</span>')}
-      <span class="muted">（${chain.length} 跳，${esc(chain[chain.length - 1].layer)}）</span></li>`).join('');
+      ${chain.map(chainChip).join('<span class="arrow">→</span>')}
+      <span class="muted">（${hops} 跳，${esc(tail.layer)}）</span></li>`;
+  }).join('');
 
   const externals = data.externals || [];
   const externalHtml = externals.length
