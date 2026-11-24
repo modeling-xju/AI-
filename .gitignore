@@ -1,16 +1,16 @@
-# 工具与大文件：Joern / JDK（约 4.2 GB），按 docs/系统框架设计.md 第 9 节安装到 tools/
+# Local toolchain and large binaries (Joern / JDK, ~4.2 GB) — see docs section 9
 tools/
 
-# 运行产物：SQLite 库、CPG 二进制、Joern 工作目录、上传解压的工程
+# Runtime artifacts: SQLite db, CPG binaries, Joern workspace, unpacked uploads
 demo/data/
 
-# 截图与录屏，本地产物
+# Screenshots / recordings are local artifacts
 demo/shots/
 
-# 第三方示例：SpringBlade 体积大且有独立许可，用 demo/scripts/fetch_springblade.py 拉取
+# Third-party sample: SpringBlade is large; fetch it with demo/scripts/fetch_springblade.py
 demo/samples/springblade/
 
-# 常规忽略
+# Common ignores
 **/__pycache__/
 *.py[cod]
 *.egg-info/
