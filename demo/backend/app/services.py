@@ -4,6 +4,8 @@ from . import db
 from .core import codegraph, docs, retrieve
 
 LAYER_ORDER = ["接入层", "业务层", "数据层", "领域层", "公共层", "其他"]
+# 评测结果按工程缓存，签名（条数与最大行号）变化后自动失效
+COMPARE_CACHE = {}
 STEP_PERCENT = {
     "": 0, "扫描源码": 8, "解析结构": 26, "解析社区发现": 58, "社区发现": 58,
     "归纳功能": 74, "恢复架构": 88, "计算指标": 96, "完成": 100,
@@ -224,7 +226,14 @@ def compare(pid):
     metrics = db.query("SELECT key, label, value, note FROM metrics WHERE project_id=? "
                        "ORDER BY id", (pid,))
     by_key = {row["key"]: row["value"] for row in metrics}
-    evaluation = retrieve.evaluate(pid)
+    # 评测要跑 4 种检索模式 × N 条查询，大工程上要十几秒；同一份分析结果的重复访问直接复用。
+    signature = retrieve._signature(pid)
+    cached = COMPARE_CACHE.get(pid)
+    if cached and cached["signature"] == signature:
+        evaluation = cached["evaluation"]
+    else:
+        evaluation = retrieve.evaluate(pid)
+        COMPARE_CACHE[pid] = {"signature": signature, "evaluation": evaluation}
     return {
         "metrics": metrics,
         "package_modularity": by_key.get("package_modularity", 0),

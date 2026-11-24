@@ -791,7 +791,7 @@ async function render() {
   const route = currentRoute();
   const fn = VIEWS[route.name] || renderOverview;
   view(VIEWS[route.name] ? route.name : 'overview');
-  $app.innerHTML = '<div class="loading">加载中…</div>';
+  $app.innerHTML = '<div class="loading"><span class="spinner"></span>正在加载…</div>';
   try {
     await fn();
   } catch (err) {
