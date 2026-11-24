@@ -709,7 +709,8 @@ async function renderCompare() {
       <tr><td>向量检索</td><td class="num">${pct(rc.vector)}</td><td>${bar(rc.vector)}</td><td class="muted">词项加权向量的余弦相似度</td></tr>
       <tr><td>关键词基线</td><td class="num">${pct(rc.keyword)}</td><td>${bar(rc.keyword)}</td><td class="muted">子串匹配，作为对照</td></tr>
     </tbody></table>
-    <p class="muted">评测用 ${rc.cases} 个由功能条目构造的查询，相关集合是该功能条目指到的那个方法。融合通道会先命中功能条目、再沿证据跳到方法，因此在这类查询上优势最大；换成人写提问，差距会收窄。</p>`);
+    <p class="muted">评测用 ${rc.cases} 个由功能条目构造的查询，相关集合是该功能条目指到的那个方法。这类查询的证据串里往往直接含类名，
+      关键词通道因此占便宜；融合的目标是「不输给任一单路」，具体谁高取决于工程与查询措辞，数值按工程实测。</p>`);
 }
 
 /* ------------------------------------------------------------------ 视图：文档 */
