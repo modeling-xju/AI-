@@ -664,7 +664,7 @@ def impact(pid, class_id, method=None):
     return {
         "origin": {"id": origin["id"], "name": origin["name"], "layer": origin["layer"],
                    "method": method or ""},
-        "classes": [{**node(n), "hop": dist[n]} for n in sorted(seen, key=lambda x: (dist[x], x))],
+        "classes": [{**node(n), "hop": dist[n], "parent": parent.get(n)} for n in sorted(seen, key=lambda x: (dist[x], x))],
         "chains": chains,
         "max_hop": max(dist.values()) if dist else 0,
         "modules": [{"id": mid, "name": module_names.get(mid, "")}
