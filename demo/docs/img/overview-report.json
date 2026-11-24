@@ -1,0 +1,31 @@
+[
+  {
+    "file": "page.png",
+    "state": null,
+    "size": "1440x900",
+    "zoom": 1,
+    "animationWaitMs": 0,
+    "issues": [],
+    "lint": [
+      {
+        "rule": "smallText",
+        "label": "文字小于 11px",
+        "count": 17,
+        "examples": [
+          "span.tag「AI · RE」（9.5px）",
+          "span#hud-engine「ENGINE · JOERN 4.0」（10px）",
+          "span#hud-status「SYNC · 已分析」（10px）"
+        ]
+      },
+      {
+        "rule": "boxedGroups",
+        "label": "用边框分组过多（首屏多块各自加框，或框里又套着几个加框的小块）",
+        "count": 2,
+        "examples": [
+          "div.project-bar「当前工程 SpringBlade（已分析） mi」（首屏 5 块各自加框）",
+          "div.project-bar「当前工程 SpringBlade（已分析） mi」（框里又有 3 个加框的块）"
+        ]
+      }
+    ]
+  }
+]

@@ -4,11 +4,15 @@
 每一步都会写入 SQLite，前端通过 /status 轮询进度。
 """
 import os
+import re
 import threading
 import traceback
 
 from .. import db
 from . import codegraph, cpg, javaparse, joern, knowledge, repo, retrieve
+
+IDENT_RE = re.compile(r"[A-Za-z_$][\w$]*")
+DEP_WEIGHT = 0.4
 
 LAYER_RANK = {"接入层": 0, "业务层": 1, "数据层": 2, "公共层": 3, "领域层": 4, "其他": 5}
 GENERIC_LABELS = {"处理", "列出", "保存", "更新", "查询", "删除", "添加", "查看", "设置"}
@@ -145,13 +149,75 @@ def _merge_by_domain(labels, classes, limit=140):
     return merged
 
 
-def _build_graph(pid):
+def _class_index(classes):
+    """类名 -> 类行列表；同名类可能分布在多个包，解析时优先同包。"""
+    index = {}
+    for row in classes:
+        index.setdefault(row["name"], []).append(row)
+    return index
+
+
+def _resolve_type(name, package, index):
+    candidates = index.get(name) or []
+    if not candidates:
+        return None
+    for row in candidates:
+        if row["package"] == package:
+            return row["id"]
+    return candidates[0]["id"]
+
+
+def _signature_type_pairs(pid, classes):
+    """方法签名里的参数与返回值类型，反映 Service -> DAO、Controller -> DTO 这类依赖。"""
+    index = _class_index(classes)
+    package_of = {row["id"]: row["package"] for row in classes}
+    rows = db.query("SELECT class_id, return_type, params FROM methods WHERE project_id=?", (pid,))
+    pairs = set()
+    for row in rows:
+        owner = row["class_id"]
+        package = package_of.get(owner, "")
+        for raw in ((row["return_type"] or "") + " " + (row["params"] or "")).split():
+            for name in IDENT_RE.findall(raw):
+                target = _resolve_type(name, package, index)
+                if target and target != owner:
+                    pairs.add(tuple(sorted((owner, target))))
+    return pairs
+
+
+def _source_type_pairs(scan, classes):
+    """继承、实现与字段类型：包、类依赖图里最稳定的那部分。"""
+    index = _class_index(classes)
+    by_key = {(row["package"], row["name"]): row for row in classes}
+    pairs = set()
+    for entry in scan["java_files"]:
+        tree = javaparse.parse_source(entry["content"])
+        package = tree.get("package") or ""
+        for cls in tree["classes"]:
+            owner = by_key.get((package, cls["name"]))
+            if not owner:
+                continue
+            raws = list(cls.get("extends") or []) + list(cls.get("implements") or [])
+            raws += [field.get("type") or "" for field in (cls.get("fields") or [])]
+            for raw in raws:
+                for name in IDENT_RE.findall(raw):
+                    target = _resolve_type(name, package, index)
+                    if target and target != owner["id"]:
+                        pairs.add(tuple(sorted((owner["id"], target))))
+    return pairs
+
+
+def _build_graph(pid, scan=None):
     classes = db.query("SELECT id, name, package, layer FROM classes WHERE project_id=?", (pid,))
     ids = {row["id"] for row in classes}
     pairs = db.query("SELECT caller_id, callee_id FROM calls WHERE project_id=? "
                      "AND callee_id IS NOT NULL", (pid,))
     adjacency = codegraph.build_class_graph(ids, [(r["caller_id"], r["callee_id"])
                                                   for r in pairs])
+    # 简介要求「在调用图与包、类依赖图上聚类」：把类型依赖以较低权重并入同一张图
+    type_pairs = _signature_type_pairs(pid, classes)
+    if scan:
+        type_pairs |= _source_type_pairs(scan, classes)
+    dep_edges = codegraph.add_type_edges(adjacency, ids, type_pairs, weight=DEP_WEIGHT)
     labels, _ = codegraph.louvain(adjacency)
     if len(classes) <= 60:
         labels = codegraph.merge_small(adjacency, labels, min_size=2, rounds=4)
@@ -162,7 +228,7 @@ def _build_graph(pid):
         labels = _merge_by_domain(labels, classes)
     quality = codegraph.modularity(adjacency, labels)
     package_labels = codegraph.class_package_labels(classes)
-    return adjacency, labels, quality, package_labels, classes
+    return adjacency, labels, quality, package_labels, classes, dep_edges
 
 
 def _store_modules(pid, adjacency, labels, classes):
@@ -350,7 +416,7 @@ def _store_components(pid):
              db.dump_json(members), db.dump_json(sorted(dependencies.get(key, set()))[:12])))
 
 
-def _store_metrics(pid, adjacency, labels, quality, package_labels, classes, scan, method_total):
+def _store_metrics(pid, adjacency, labels, quality, package_labels, classes, scan, method_total, dep_edges):
     db.execute("DELETE FROM metrics WHERE project_id=?", (pid,))
     modules = db.query("SELECT id, cohesion FROM modules WHERE project_id=?", (pid,))
     package_q = codegraph.modularity(adjacency, package_labels)
@@ -365,6 +431,7 @@ def _store_metrics(pid, adjacency, labels, quality, package_labels, classes, sca
         ("modules", "社区数", len(modules), "Louvain 在调用图上的划分结果"),
         ("calls", "调用点数", db.query_one("SELECT COUNT(*) AS n FROM calls WHERE project_id=?",
                                            (pid,))["n"], "解析后能落到具体类的调用"),
+        ("dep_edges", "类依赖边", dep_edges, "继承、实现、字段与签名类型构成的依赖边"),
         ("modularity", "模块度 Q", round(quality, 3), "调用图社区划分的模块度"),
         ("package_modularity", "包结构模块度", round(package_q, 3), "按 package 划分的基线"),
         ("nmi", "NMI", round(nmi_value, 3), "与包结构划分的标准化互信息"),
@@ -507,6 +574,30 @@ def _store_joern(pid, data, docs=None):
     return len(rows), len(method_rows), len(call_rows)
 
 
+def _store_fields(pid, scan):
+    """字段作为实体入库：结构页要展示，类型依赖边也从这里来。"""
+    by_key = {(row["package"], row["name"]): row["id"]
+              for row in db.query("SELECT id, name, package FROM classes WHERE project_id=?", (pid,))}
+    rows = []
+    for entry in scan["java_files"]:
+        tree = javaparse.parse_source(entry["content"])
+        package = tree.get("package") or ""
+        for cls in tree["classes"]:
+            class_id = by_key.get((package, cls["name"]))
+            if not class_id:
+                continue
+            for field in cls.get("fields") or []:
+                modifiers = field.get("modifiers") or ""
+                if isinstance(modifiers, (list, tuple)):
+                    modifiers = " ".join(modifiers)
+                rows.append((pid, class_id, field["name"], field.get("type", ""), modifiers,
+                             field.get("line", 0), field.get("doc", "")))
+    if rows:
+        db.execute_many("INSERT INTO fields(project_id, class_id, name, type_name, modifiers, "
+                        "line, doc) VALUES(?,?,?,?,?,?,?)", rows)
+    return len(rows)
+
+
 def _store_cpg_metrics(pid, data):
     """Joern 路径的属性图指标：_store_metrics 会清表，所以单独在它之后写一次。"""
     counts = data["counts"]
@@ -535,9 +626,10 @@ def _run_joern(pid, project_row, scan):
     data = joern.analyze(project_row["root"], workdir)
     db.set_status(pid, step="解析调用")
     class_total, method_total, _ = _store_joern(pid, data, _method_docs(scan))
+    _store_fields(pid, scan)
 
     db.set_status(pid, step="社区发现")
-    adjacency, labels, quality, package_labels, classes = _build_graph(pid)
+    adjacency, labels, quality, package_labels, classes, dep_edges = _build_graph(pid, scan)
 
     db.set_status(pid, step="归纳功能")
     _store_modules(pid, adjacency, labels, classes)
@@ -547,7 +639,7 @@ def _run_joern(pid, project_row, scan):
     _store_components(pid)
 
     db.set_status(pid, step="计算指标")
-    _store_metrics(pid, adjacency, labels, quality, package_labels, classes, scan, method_total)
+    _store_metrics(pid, adjacency, labels, quality, package_labels, classes, scan, method_total, dep_edges)
     _store_cpg_metrics(pid, data)  # _store_metrics 会先清空 metrics，属性图指标要在这之后写
     db.execute("UPDATE projects SET class_count=?, loc=?, build_tool=?, languages=? WHERE id=?",
                (class_total, scan["loc"], scan["build_tool"],
@@ -586,9 +678,10 @@ def _run(pid):
 
     db.set_status(pid, step="解析结构")
     class_total, method_total, _ = _store_structure(pid)
+    _store_fields(pid, scan)
 
     db.set_status(pid, step="社区发现")
-    adjacency, labels, quality, package_labels, classes = _build_graph(pid)
+    adjacency, labels, quality, package_labels, classes, dep_edges = _build_graph(pid, scan)
 
     db.set_status(pid, step="归纳功能")
     _store_modules(pid, adjacency, labels, classes)
@@ -598,7 +691,7 @@ def _run(pid):
     _store_components(pid)
 
     db.set_status(pid, step="计算指标")
-    _store_metrics(pid, adjacency, labels, quality, package_labels, classes, scan, method_total)
+    _store_metrics(pid, adjacency, labels, quality, package_labels, classes, scan, method_total, dep_edges)
     db.execute("UPDATE projects SET class_count=? WHERE id=?", (class_total, pid))
 
     db.set_status(pid, step="导出代码属性图")

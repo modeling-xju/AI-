@@ -50,6 +50,27 @@ def build_class_graph(class_ids, call_pairs):
     return adj
 
 
+def add_type_edges(adj, class_ids, type_pairs, weight=0.4):
+    """把类型依赖（继承、实现、字段与签名类型）并入调用图。
+
+    调用边权重 1.0，类型依赖权重 0.4：让「同一业务模块里方法互相调用」仍占主导，
+    但仅靠类型引用串联的类（DTO 与 Service、Controller 与 DTO）也能进同一社区。
+    返回新增的边数。
+    """
+    added = 0
+    for left, right in type_pairs:
+        if left is None or right is None or left == right:
+            continue
+        if left not in class_ids or right not in class_ids:
+            continue
+        before = adj[left].get(right, 0.0)
+        adj[left][right] = before + weight
+        adj[right][left] = adj[right].get(left, 0.0) + weight
+        if before == 0.0:
+            added += 1
+    return added
+
+
 def modularity(adj, labels):
     """加权无向图的模块度 Q。labels: {node: community}。"""
     nodes = list(adj.keys())

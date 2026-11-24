@@ -115,6 +115,13 @@ def structure(pid):
     calls = db.query("SELECT caller_id, callee_name, qualifier, line, "
                      "CASE WHEN callee_id IS NULL THEN 0 ELSE 1 END AS resolved "
                      "FROM calls WHERE project_id=?", (pid,))
+    fields = db.query("SELECT class_id, name, type_name, line, doc FROM fields "
+                      "WHERE project_id=? ORDER BY class_id, line", (pid,))
+    field_by_class = {}
+    for row in fields:
+        field_by_class.setdefault(row["class_id"], []).append({
+            "name": row["name"], "type_name": row["type_name"],
+            "line": row["line"], "doc": row["doc"]})
 
     method_by_class, call_by_method = {}, {}
     for method in methods:
@@ -145,6 +152,7 @@ def structure(pid):
                 "layer": cls["layer"], "package": cls["package"], "line": cls["line"],
                 "doc": cls["doc"], "module_id": cls["module_id"],
                 "methods": method_by_class.get(cls["id"], []),
+                "fields": field_by_class.get(cls["id"], []),
             })
     return {"files": files, "classes_total": len(classes),
             "methods_total": len(methods), "calls_total": len(calls),

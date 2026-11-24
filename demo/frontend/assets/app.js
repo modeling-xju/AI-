@@ -355,6 +355,9 @@ function groupLabel(dir) {
 }
 
 function methodItem(m) {
+  // Joern 会把构造方法与编译器生成的方法一并报出来，展示时换成可读的名字
+  const display = /^<(init|clinit)>$/.test(m.name || '')
+    ? (m.name === '<init>' ? '构造方法' : '静态初始化') : (m.name || '');
   const facts = [
     m.branches ? `<span class="chip soft">分支 ${m.branches}</span>` : '',
     m.loops ? `<span class="chip soft">循环 ${m.loops}</span>` : '',
@@ -362,14 +365,20 @@ function methodItem(m) {
   ].join('');
   const calls = (m.calls || []).slice(0, 4).map((x) =>
     `<span class="chip ${x.resolved ? '' : 'warn'}">→ ${esc(x.qualifier ? x.qualifier + '.' : '')}${esc(x.name)}</span>`).join('');
-  return `<li class="method"><b>${esc(m.name)}</b><code>${esc(m.signature)}</code>
+  return `<li class="method"><b>${esc(display)}</b><code>${esc(m.signature)}</code>
     <span class="muted">第 ${m.line} 行 · ${m.loc} 行</span>${facts}<span class="calls">${calls}</span></li>`;
 }
 
 function classBlock(c) {
-  const methods = (c.methods || []).map(methodItem).join('');
+  // lambda 是编译器生成的，展示时略过
+  const methods = (c.methods || []).filter((m) => !/^<lambda/.test(m.name || ''))
+    .map(methodItem).join('');
+  const fields = (c.fields || []).map((f) => `<span class="chip field"><b>${esc(f.name)}</b>${
+    f.type_name ? `: ${esc(f.type_name)}` : ''}</span>`).join('');
   return `<details class="cls"><summary><b>${esc(c.name)}</b>
-    <span class="badge">${esc(c.layer)}</span><span class="muted">${esc(c.kind)} · 第 ${c.line} 行</span></summary>
+    <span class="badge">${esc(c.layer)}</span><span class="muted">${esc(c.kind)} · 第 ${c.line} 行</span>
+    ${c.fields && c.fields.length ? `<span class="muted">· ${c.fields.length} 字段</span>` : ''}</summary>
+    ${fields ? `<p class="fields">${fields}</p>` : ''}
     <ul class="methods">${methods || '<li class="muted">无可解析方法</li>'}</ul></details>`;
 }
 

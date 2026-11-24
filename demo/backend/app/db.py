@@ -76,6 +76,17 @@ CREATE TABLE IF NOT EXISTS methods (
     catches     INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS fields (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    class_id   INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    type_name  TEXT DEFAULT '',
+    modifiers  TEXT DEFAULT '',
+    line       INTEGER DEFAULT 0,
+    doc        TEXT DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS calls (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id  INTEGER NOT NULL,
@@ -243,7 +254,7 @@ def list_projects():
 
 def clear_project(pid):
     """重新分析前清空分析结果，工程本身保留。"""
-    for table in ("calls", "methods", "classes", "modules", "functions", "components",
+    for table in ("calls", "fields", "methods", "classes", "modules", "functions", "components",
                   "documents", "metrics", "files"):
         execute("DELETE FROM %s WHERE project_id=?" % table, (pid,))
 
