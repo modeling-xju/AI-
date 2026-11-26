@@ -9,16 +9,60 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-  // birdview 的配色：低饱和、深底上偏亮，右侧检查器用 mint 做强调
+  // 配色与形状参考 Software-TransSpect 的 GraphCanvas：按节点类型给饱和色 + 各自的几何形状，
+  // 刻意避开界面强调色（蓝），免得和按钮混在一起。
   const LAYER_COLOR = {
-    '接入层': '#5fa8d3', '业务层': '#7bc9a8', '数据层': '#b79ce6',
-    '领域层': '#e0b072', '公共层': '#9aa7a2', '其他': '#8a9a94', '外部依赖': '#e08a6a',
+    '接入层': '#0891b2', '业务层': '#7c3aed', '数据层': '#14b8a6',
+    '领域层': '#e8a33d', '公共层': '#10b981', '其他': '#64748b', '外部依赖': '#d4a017',
   };
-  const color = (layer) => LAYER_COLOR[layer] || '#8a9a94';
+  const color = (layer) => LAYER_COLOR[layer] || '#64748b';
+
+  // 分层 → 形状：接入=方块、业务=圆、数据=六边形、领域=菱形、公共=圆点、其他=三角
+  const LAYER_SHAPE = {
+    '接入层': 'square', '业务层': 'circle', '数据层': 'hex',
+    '领域层': 'diamond', '公共层': 'dot', '其他': 'tri', '外部依赖': 'ext',
+  };
+  const shapeOf = (layer) => LAYER_SHAPE[layer] || 'dot';
+
+  // 没有分层信息的图（功能树）按模块轮转色板，保证相邻模块颜色不同
+  const MODULE_TINTS = ['#0891b2', '#7c3aed', '#14b8a6', '#e8a33d', '#10b981', '#d946ef',
+    '#0f766e', '#a855f7', '#e05c6e', '#64748b'];
+
+  function glyph(layer, cx, cy, size) {
+    const c = color(layer);
+    const s = size;
+    switch (shapeOf(layer)) {
+      case 'square':
+        return `<rect x="${cx - s}" y="${cy - s}" width="${s * 2}" height="${s * 2}" rx="2"
+          style="fill:${c}33;stroke:${c};stroke-width:1.3"></rect>`;
+      case 'circle':
+        return `<circle cx="${cx}" cy="${cy}" r="${s}" style="fill:${c}33;stroke:${c};stroke-width:1.3"></circle>`;
+      case 'hex': {
+        const pts = [];
+        for (let i = 0; i < 6; i += 1) {
+          const a = (Math.PI / 3) * i - Math.PI / 6;
+          pts.push(`${(cx + s * 1.12 * Math.cos(a)).toFixed(1)},${(cy + s * 1.12 * Math.sin(a)).toFixed(1)}`);
+        }
+        return `<polygon points="${pts.join(' ')}" style="fill:${c}33;stroke:${c};stroke-width:1.3"></polygon>`;
+      }
+      case 'diamond':
+        return `<polygon points="${cx},${cy - s * 1.25} ${cx + s * 1.25},${cy} ${cx},${cy + s * 1.25} ${cx - s * 1.25},${cy}"
+          style="fill:${c}33;stroke:${c};stroke-width:1.3"></polygon>`;
+      case 'tri':
+        return `<polygon points="${cx},${cy - s * 1.2} ${cx + s * 1.1},${cy + s * 0.85} ${cx - s * 1.1},${cy + s * 0.85}"
+          style="fill:${c}33;stroke:${c};stroke-width:1.3"></polygon>`;
+      case 'ext':
+        return `<rect x="${cx - s}" y="${cy - s}" width="${s * 2}" height="${s * 2}" rx="2"
+          style="fill:none;stroke:${c};stroke-width:1.3;stroke-dasharray:2 2"></rect>`;
+      default:
+        return `<circle cx="${cx}" cy="${cy}" r="${s * 0.62}" style="fill:${c}"></circle>`;
+    }
+  }
 
   const legend = (layers) => `<div class="map-legend">${layers
     .filter((l) => LAYER_COLOR[l])
-    .map((l) => `<span><i style="background:${color(l)}"></i>${esc(l)}</span>`).join('')}</div>`;
+    .map((l) => `<span class="lg"><i class="gmark" data-shape="${shapeOf(l)}"
+      style="--g:${color(l)}"></i>${esc(l)}</span>`).join('')}</div>`;
 
   const frame = (canvas, inspector, hint) => `
     <div class="map">
@@ -168,7 +212,8 @@
       rectEl.setAttribute('width', String(Math.max(1, w - 2)));
       rectEl.setAttribute('height', String(Math.max(1, h - 2)));
       rectEl.setAttribute('rx', level <= 1 ? '4' : '2');
-      if (node.layer) rectEl.style.setProperty('--tint', color(node.layer));
+      const tint = node.tint || (node.layer ? color(node.layer) : null);
+      if (tint) rectEl.style.setProperty('--tint', tint);
       g.appendChild(rectEl);
 
       const tiny = level === 3 && (w < 74 || h < 34);
@@ -361,8 +406,9 @@
     inspector.className = 'insp';
     const root = {
       label: '功能树', meta: `${functions.tree.length} 个模块 · ${functions.leaf_count} 条`,
-      children: functions.tree.map((mod) => ({
+      children: functions.tree.map((mod, mi) => ({
         label: mod.name,
+        tint: MODULE_TINTS[mi % MODULE_TINTS.length],
         meta: `${mod.children.length} 条`,
         value: mod.children.length,
         children: mod.children.map((leaf) => ({
@@ -446,7 +492,7 @@
         const c = list[0];
         grid.insertAdjacentHTML('beforeend', `
           <div class="am-cell" data-row="${ri}" data-id="${c.id}" style="--tint:${color(l)}">
-            <b>${c.classes.length} 类</b>
+            <b><i class="gmark" data-shape="${shapeOf(l)}" style="--g:${color(l)}"></i>${c.classes.length} 类</b>
             <small>${c.depends_on.length ? c.depends_on.length + ' 条依赖' : '无传出依赖'}</small>
             ${list.length > 1 ? `<em>+${list.length - 1} 个组件</em>` : ''}
           </div>`);
@@ -564,7 +610,12 @@
       const x1 = from.x + from.w; const y1 = from.y + from.h / 2;
       const x2 = to.x; const y2 = to.y + to.h / 2;
       const mx = (x1 + x2) / 2;
-      parts.push(`<path class="edge" d="M${x1} ${y1} C${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}"></path>`);
+      const dyn = node.dynamic ? ' dynamic' : '';
+      parts.push(`<path class="edge${dyn}" d="M${x1} ${y1} C${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}"></path>`);
+      if (node.dynamic) {
+        parts.push(`<g class="edge-tag"><rect x="${mx - 13}" y="${(y1 + y2) / 2 - 9}" width="26" height="14" rx="3"></rect>
+          <text x="${mx}" y="${(y1 + y2) / 2 + 1}">动态</text></g>`);
+      }
     });
     // 节点卡片
     nodes.forEach((node) => {
@@ -572,7 +623,7 @@
       if (!p) return;
       parts.push(`<g class="inode${node.hop === 0 ? ' origin' : ''}" data-id="${node.id}" tabindex="0">
         <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="5"></rect>
-        <circle cx="${p.x + 15}" cy="${p.y + 17}" r="4" style="fill:${color(node.layer)}"></circle>
+        ${glyph(node.layer, p.x + 16, p.y + 17, 5)}
         <text class="iname" x="${p.x + 27}" y="${p.y + 21}">${esc(node.name)}</text>
         <text class="imeta" x="${p.x + 27}" y="${p.y + 35}">${esc(node.module || node.layer || '')}</text>
       </g>`);
@@ -621,8 +672,8 @@
       ? usedLayers : ['接入层', '业务层', '数据层', '领域层', '公共层']));
     wrap.appendChild(railEl(
       [['受影响类', nodes.length - 1], ['最大跳数', maxHop]],
-      '列 = 跳数；点卡片看路径。',
-      []));
+      '列 = 跳数；点卡片看路径，虚线边 = 动态推断。',
+      usedLayers));
     wrap.appendChild(pane);
     wrap.appendChild(inspector);
     return wrap;
