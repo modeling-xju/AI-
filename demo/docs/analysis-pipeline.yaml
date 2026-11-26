@@ -18,7 +18,7 @@ stages:
     layer: 事实层
     output: projects / files
     rule: 识别 Maven、Gradle 与模块清单；剔除测试文件；统计语言构成
-    paper: Chikofsky & Cross 1990（逆向工程分类）
+    paper: 文献[11]CHIKOFSKY & CROSS 1990（逆向工程与再工程分类）
     llm: none
   - id: S2
     name: 代码结构解析
@@ -26,7 +26,7 @@ stages:
     layer: 事实层
     output: classes / methods / calls / fields
     rule: Joern 生成 CPG；抽取 AST、CALL、CFG、CDG、DDG、REF 六类边
-    paper: Yamaguchi et al. 2014（代码属性图）
+    paper: 文献[9]YAMAGUCHI 等 2014（代码属性图）；文献[10]LIU 等 2024（图 + 语言模型）
     llm: none
   - id: S3
     name: 结构入库与图查询
@@ -34,7 +34,7 @@ stages:
     layer: 知识层
     output: 调用图 · 依赖图 · 图查询接口
     rule: 调用点必须落到具体类；callee 未解析的调用只作外部依赖候选
-    paper: Kazman et al. 1999（基于证据的架构恢复）
+    paper: 文献[9]YAMAGUCHI 等 2014（代码属性图作为中间表示）
     llm: none
   - id: S4
     name: 代码知识库与检索
@@ -42,7 +42,7 @@ stages:
     layer: 知识层
     output: 索引 · Recall@5
     rule: BM25 与 LSA（tf-idf 截断 SVD，96 维，词项 3:7 混合）两路，名次 RRF 融合，叠调用图邻居与功能证据一跳
-    paper: Robertson & Zaragoza 2009（BM25）；Cormack et al. 2009（RRF）
+    paper: 文献[13]ROBERTSON & ZARAGOZA 2009（BM25）；文献[14]CORMACK 等 2009（RRF）；文献[16]DEERWESTER 等 1990（LSA）；文献[3][4][5]（仓库级检索）
     llm: none
   - id: S5
     name: 功能需求恢复
@@ -50,7 +50,7 @@ stages:
     layer: 语义层
     output: modules / functions
     rule: Louvain 社区发现 + 大模型或启发式命名；同层不同类不得同名；访问器折叠
-    paper: Blondel et al. 2008（Louvain）；Hou et al. 2024（LLM4SE 综述）
+    paper: 文献[15]BLONDEL 等 2008（Louvain）；文献[1][2]（LLM 辅助命名）
     llm: naming
   - id: S6
     name: 系统架构恢复
@@ -58,7 +58,7 @@ stages:
     layer: 语义层
     output: components / layer_matrix / critical_paths / externals
     rule: 组件 = 模块 × 分层；给出层间依赖矩阵、入口关键路径、外部依赖与远程终点
-    paper: Kazman et al. 1999；Chikofsky & Cross 1990
+    paper: 文献[12]KAZMAN & CARRIÈRE 1999（基于证据的架构恢复）；文献[6]QAYUM 等 2025（架构恢复方法分类）；文献[8]ISO/IEC/IEEE 42010:2022（架构描述）
     llm: none
   - id: S7
     name: 变更影响分析
@@ -66,7 +66,7 @@ stages:
     layer: 语义层
     output: impact
     rule: 沿调用图反向 BFS，支持方法级起点；补接口↔实现与反射字面量的「动态推断」边，单独标记
-    paper: Yamaguchi et al. 2014（图可达性）；Arnold & Bohner 1996（影响分析）
+    paper: 文献[9]YAMAGUCHI 等 2014（图可达性）；文献[17]ARNOLD & BOHNER 1996（变更影响分析）
     llm: none
   - id: S8
     name: 文档生成
@@ -74,7 +74,7 @@ stages:
     layer: 交付层
     output: documents
     rule: 接口文档、用户手册、完整报告；每条结论带行号，可导出 Markdown 与章节
-    paper: Chikofsky & Cross 1990（再文档化）
+    paper: 文献[11]CHIKOFSKY & CROSS 1990（再文档化）
     llm: none
 
 # 算法应用：满足「至少一项算法接入业务流程，有输入、输出与对比」
@@ -86,7 +86,7 @@ algorithms:
     output: 模块划分
     baseline: 按 package 划分
     metric: modularity Q / NMI / cohesion
-    paper: Blondel et al. 2008
+    paper: 文献[15]BLONDEL 等 2008（Louvain）
   - id: A2
     name: 语义检索（RRF 融合）
     stage: S4
@@ -94,7 +94,7 @@ algorithms:
     output: Top-k 方法
     baseline: 整串关键词匹配
     metric: Recall@5
-    paper: Robertson & Zaragoza 2009；Cormack et al. 2009
+    paper: 文献[13]ROBERTSON & ZARAGOZA 2009；文献[14]CORMACK 等 2009；文献[16]DEERWESTER 等 1990
   - id: A3
     name: 命名与归并
     stage: S5
@@ -102,7 +102,7 @@ algorithms:
     output: 模块名、功能名
     baseline: 启发式（动词 + 名词 + 限定词）
     metric: 人工抽样一致率
-    paper: Hou et al. 2024（LLM4SE 综述）
+    paper: 文献[1][2]（LLM 命名与归并）
   - id: A4
     name: 影响传播（反向可达）
     stage: S7
@@ -110,7 +110,7 @@ algorithms:
     output: 受影响类集合与跳数
     baseline: 仅直接调用方（1 跳）
     metric: 覆盖跳数与功能命中数
-    paper: Arnold & Bohner 1996
+    paper: 文献[17]ARNOLD & BOHNER 1996（影响分析）；文献[9]YAMAGUCHI 等 2014
 
 # 大模型的边界：只允许参与命名，不允许生成结构事实
 llm_policy:

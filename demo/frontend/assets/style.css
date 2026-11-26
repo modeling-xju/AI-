@@ -997,3 +997,9 @@ details.hl > summary { border-radius: 3px; }
 .tk-line { color: var(--bv-code); font-size: 10.5px; flex: 0 0 auto; min-width: 36px; text-align: right; opacity: .85; }
 .code-row.accessor { color: var(--bv-muted); }
 .tk-acc { flex: 0 0 auto; color: var(--bv-text); opacity: .78; }
+
+.vp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 26px; padding: 4px 0 6px; }
+.vp-grid h4 { margin: 0 0 4px; font: 600 12px/1.3 var(--mono); letter-spacing: .04em; color: var(--ink-2); }
+.vp-grid p { margin: 0 0 4px; }
+.plain.tight li { margin: 2px 0; }
+@media (max-width: 980px) { .vp-grid { grid-template-columns: 1fr; } }

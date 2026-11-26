@@ -204,7 +204,21 @@ def architecture(pid):
             "externals": [{"name": row["name"], "kind": row["kind"], "count": row["count"]}
                           for row in db.query(
                               "SELECT name, kind, count FROM externals WHERE project_id=? "
-                              "ORDER BY count DESC LIMIT 10", (pid,))]}
+                              "ORDER BY count DESC LIMIT 10", (pid,))],
+            # ISO/IEC/IEEE 42010:2022 要求架构描述说清「视点—关注点—模型种类—对应关系」
+            "viewpoint": {
+                "name": "分层组件视图（Layered Component Viewpoint）",
+                "standard": "ISO/IEC/IEEE 42010:2022",
+                "stakeholders": ["维护工程师", "架构师", "测试工程师"],
+                "concerns": ["模块边界是否与代码结构一致", "层间依赖方向是否单向",
+                             "哪些外部系统被耦合", "入口到存储的关键链路"],
+                "model_kinds": ["组件图（层 × 模块 × 类）", "层间依赖矩阵",
+                                "关键路径（含外部依赖）", "外部依赖清单"],
+                "correspondences": ["组件 ↔ 类（components.classes）",
+                                    "组件 ↔ 功能条目（component_functions）",
+                                    "依赖边 ↔ 类级调用（calls）"],
+                "references": ["[8]", "[7]", "[9]"],
+            }}
 
 
 def _layer_matrix(pid):

@@ -889,6 +889,24 @@ async function renderFunctions() {
 /* ------------------------------------------------------------------ 视图：架构 */
 async function renderArchitecture() {
   const data = await api(`/api/projects/${state.pid}/architecture`);
+  const viewpointHtml = (vp) => {
+    if (!vp) return '';
+    const chips = (list) => (list || []).map((x) => `<span class="chip">${esc(x)}</span>`).join('');
+    const items = (list) => `<ul class="plain tight">${(list || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+    return `
+    <details class="fold viewpoint">
+      <summary>架构描述视角 <span class="muted">${esc(vp.standard)}</span></summary>
+      <div class="vp-grid">
+        <div><h4>视点</h4><p>${esc(vp.name)}</p></div>
+        <div><h4>干系人</h4><p class="chips">${chips(vp.stakeholders)}</p></div>
+        <div><h4>关注点</h4>${items(vp.concerns)}</div>
+        <div><h4>模型种类</h4>${items(vp.model_kinds)}</div>
+        <div><h4>对应关系</h4>${items(vp.correspondences)}</div>
+        <div><h4>依据</h4><p class="mono">${esc((vp.references || []).join(' '))}</p>
+          <p class="muted">视点、关注点、模型种类与对应关系按 42010 组织；标准本身不规定算法，算法选择见「评测对比」。</p></div>
+      </div>
+    </details>`;
+  };
   const chipList = (list, limit = 8) => {
     const shown = list.slice(0, limit);
     const rest = list.slice(shown.length);
@@ -944,6 +962,7 @@ async function renderArchitecture() {
     <section class="head"><div><h1>系统架构视图</h1>
       <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div>
       ${viewToggle('architecture')}</section>
+    ${viewpointHtml(data.viewpoint)}
     <div id="arch-map"></div>
     <div id="arch-list" ${VIEW.architecture === 'map' ? 'hidden' : ''}>
     <h2>入口与关键路径</h2>
@@ -1313,6 +1332,17 @@ async function renderCompare() {
       <button class="ghost" id="copy-md">复制为 Markdown</button></section>
     <h2>结构指标</h2>
     <table><thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead><tbody>${rows}</tbody></table>
+    <h2>方法对照</h2>
+    <table class="method-compare"><thead><tr><th>维度</th><th>自研解析器（本项目）</th><th>Joern CPG</th><th>CodeQL</th></tr></thead><tbody>
+      <tr><td>输入要求</td><td>Java 源码，无需构建</td><td>源码或构建产物，可免构建</td><td>需先建可编译数据库</td></tr>
+      <tr><td>输出粒度</td><td>类 / 方法 / 调用点 / 字段</td><td>全量 CPG（AST·CFG·CDG·DDG·REF）</td><td>语义数据库，查询自行编写</td></tr>
+      <tr><td>控制流 / 数据流</td><td>方法内近似</td><td>原生给出</td><td>原生给出</td></tr>
+      <tr><td>动态分派</td><td>静态调用 + 接口↔实现、反射字面量推断</td><td>静态调用图</td><td>编译期解析，反射需建模</td></tr>
+      <tr><td>部署成本</td><td>纯 Python，秒级</td><td>JVM + 1.7 GB，分钟级</td><td>构建 + 许可</td></tr>
+      <tr><td>本课题用途</td><td>小工程与兜底路径</td><td>大工程主路径（抽取结构事实）</td><td>未接入，作为能力边界说明</td></tr>
+    </tbody></table>
+    <p class="muted small">对照维度取自架构恢复方法的三级映射研究[6]与静态分析工具横向对比[7]；CPG 的建模方式见[9]，
+      图结构 + 大模型检索的路线见[3]。表里只写实测到的能力，不写未验证的结论。</p>
     <h2>语义检索召回率</h2>
     <table><thead><tr><th>方案</th><th>Recall@5</th><th></th><th>说明</th></tr></thead><tbody>
       <tr><td>融合排序（本项目）</td><td class="num">${pct(rc.fusion)}</td><td>${bar(rc.fusion)}</td><td class="muted">BM25 与向量名次融合，叠加调用图邻居</td></tr>
