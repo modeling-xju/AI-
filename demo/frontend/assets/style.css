@@ -1247,3 +1247,4 @@ details.hl > summary { border-radius: 3px; }
 .map-shell .insp { right: 12px; bottom: 12px; width: 272px; max-height: 46%; overflow: auto; }
 .map-shell .insp .insp-h { padding: 10px 12px 6px; }
 .map-shell .insp .insp-b { padding: 0 12px 12px; }
+.map-shell .insp { right: 10px; bottom: 10px; width: 252px; max-height: 40%; }
