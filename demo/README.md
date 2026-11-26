@@ -100,6 +100,7 @@ demo/
 | GET | `/api/projects/{pid}/compare` | 模块度、NMI、检索评测 |
 | GET | `/api/projects/{pid}/search?q=&mode=&k=` | `mode=bm25\|keyword\|vector\|fusion` |
 | GET | `/api/projects/{pid}/graph?op=callers\|callees\|path&class=&from=&to=` | 知识库图查询：谁调用它 / 它调用谁 / 两类间最短调用链 |
+| POST | `/api/projects/{pid}/graph/ask` | 自然语言 → 图查询：`{q, use_llm}`，返回 `source`（llm / llm-fallback / rule）、`plan`、`evidence`、`result` |
 | GET | `/api/projects/{pid}/impact/{class_id}?method=` | 变更影响：类 → 模块 → 功能；给 `method` 时先只看该方法的调用方 |
 | GET | `/api/projects/{pid}/documents` | 文档列表 |
 | GET | `/api/projects/{pid}/documents/{doc_id}` | 单篇（`html` 为渲染结果） |
@@ -168,6 +169,8 @@ demo/
   右边是 `CPG / EDGES / MODULES / RECOVERY` 的等宽 HUD；模块表的类 chip 默认只显示 8 个，其余折叠为 `+N`，点一下就地展开。
 - **语义检索**：左列表右详情——点一条看完整签名、所属模块与证据片段，详情里可直接「看调用方 / 看被调方」
   跳到下方调用链查询；顶部显示命中条数与当前模式，提供「登录 / 订单 / 菜单 / 令牌 / 用户 / 租户」快捷查询；
+  调用链查询有「自然语言 → 图查询」开关（`localStorage` 记住状态）：开启时用一句话提问（如「OrderController 到 OrderDao 的路径」），
+  模型只出查询计划、执行仍走本地图算法，未配置模型或解析失败自动退回规则；关闭时回到「操作 + 类下拉」的模板查询，演示可随时关掉。
   未输入时按工程规模给默认查询（小工程「加入购物车」、大工程「登录」）。
 - **系统架构**：分层组件在上，层间依赖矩阵与组件—功能对齐收进两个折叠块，页面高度减半；组件里的类 chip
   默认显示 8 个，其余折成 `+N` 就地展开；「外部依赖」区块把缓存、消息、对象存储、数据访问库按类型与调用次数列出。

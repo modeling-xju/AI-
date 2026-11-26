@@ -1003,3 +1003,17 @@ details.hl > summary { border-radius: 3px; }
 .vp-grid p { margin: 0 0 4px; }
 .plain.tight li { margin: 2px 0; }
 @media (max-width: 980px) { .vp-grid { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------- 自然语言 → 图查询 */
+.nl-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 2px 0 10px; }
+.nl-bar .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px;
+  color: var(--ink); cursor: pointer; }
+.nl-bar .switch input { width: 15px; height: 15px; accent-color: var(--primary); }
+.ask-panel { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--card); padding: 14px 16px; }
+.ask-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.ask-panel .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.ask-panel ul.plain li { margin: 4px 0; }
+.ask-panel .jump { color: var(--primary); text-decoration: none; font-weight: 600;
+  border-bottom: 1px dotted color-mix(in srgb, var(--primary) 45%, transparent); }
+.ask-panel .jump:hover { border-bottom-style: solid; }

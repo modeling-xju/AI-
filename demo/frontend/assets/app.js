@@ -9,6 +9,9 @@ const state = {
   poll: null,
   search: { q: '', mode: 'fusion' },
   graph: { op: 'callers', cls: 0, from: '', to: '' },
+  nlGraph: localStorage.getItem('nlGraph') === '1',
+  askQ: '',
+  ask: null,
   impactClass: 0,
   impactMethod: "",
   docId: 0,
@@ -1100,20 +1103,37 @@ async function renderSearch() {
     </div>
 
     <h2>调用链查询</h2>
-    <div class="form-panel inline">
-      <label>操作
-        <select id="g-op">
-          <option value="callers" ${g.op === 'callers' ? 'selected' : ''}>谁调用了它</option>
-          <option value="callees" ${g.op === 'callees' ? 'selected' : ''}>它调用了谁</option>
-          <option value="path" ${g.op === 'path' ? 'selected' : ''}>两点之间路径</option>
-        </select>
-      </label>
-      <label>类<select id="g-cls">${options}</select></label>
-      <label>从<input id="g-from" value="${esc(g.from)}" placeholder="入口类名" size="12"></label>
-      <label>到<input id="g-to" value="${esc(g.to)}" placeholder="目标类名" size="12"></label>
-      <button class="primary" id="g-go">查询</button>
+    <div class="nl-bar">
+      <label class="switch"><input type="checkbox" id="nl-toggle" ${state.nlGraph ? 'checked' : ''}>
+        <span>自然语言 → 图查询</span></label>
+      <span class="muted small">${state.nlGraph
+        ? '用一句话描述要查什么，模型只负责出查询计划，执行仍走本地图算法；解析失败自动退回规则。'
+        : '关闭时走模板查询（操作 + 类下拉），演示可随时关掉。'}</span>
     </div>
-    ${graphBody}`);
+    ${state.nlGraph ? `
+      <div class="form-panel inline">
+        <label class="grow">问题<input id="ask-q" value="${esc(state.askQ)}"
+          placeholder="例如：谁调用了 User / OrderController 到 OrderDao 的路径 / 改 User 会影响哪些类"></label>
+        <button class="primary" id="ask-go">解析并查询</button>
+        <button class="ghost" id="ask-clear">清空</button>
+      </div>
+      ${state.ask ? askPanelHtml(state.ask) : ''}
+    ` : `
+      <div class="form-panel inline">
+        <label>操作
+          <select id="g-op">
+            <option value="callers" ${g.op === 'callers' ? 'selected' : ''}>谁调用了它</option>
+            <option value="callees" ${g.op === 'callees' ? 'selected' : ''}>它调用了谁</option>
+            <option value="path" ${g.op === 'path' ? 'selected' : ''}>两点之间路径</option>
+          </select>
+        </label>
+        <label>类<select id="g-cls">${options}</select></label>
+        <label>从<input id="g-from" value="${esc(g.from)}" placeholder="入口类名" size="12"></label>
+        <label>到<input id="g-to" value="${esc(g.to)}" placeholder="目标类名" size="12"></label>
+        <button class="primary" id="g-go">查询</button>
+      </div>
+    `}
+    ${state.nlGraph ? '' : graphBody}`);
 
   const form = document.getElementById('search-form');
   form.onsubmit = (e) => {
@@ -1158,7 +1178,37 @@ async function renderSearch() {
     });
   }
   bindDetail();
-  document.getElementById('g-go').onclick = () => {
+  document.getElementById('nl-toggle').onchange = (e) => {
+    state.nlGraph = e.target.checked;
+    localStorage.setItem('nlGraph', state.nlGraph ? '1' : '0');
+    renderSearch();
+  };
+  const askGo = document.getElementById('ask-go');
+  if (askGo) {
+    askGo.onclick = async () => {
+      const q = document.getElementById('ask-q').value.trim();
+      if (!q) { toast('先写一句要查什么'); return; }
+      state.askQ = q;
+      askGo.disabled = true;
+      askGo.textContent = '解析中…';
+      try {
+        const res = await fetch(`/api/projects/${state.pid}/graph/ask`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q, use_llm: true }),
+        }).then((r) => r.json());
+        state.ask = res;
+      } catch (error) {
+        toast('查询失败：' + error.message);
+      }
+      renderSearch();
+    };
+    document.getElementById('ask-clear').onclick = () => {
+      state.askQ = ''; state.ask = null; renderSearch();
+    };
+  }
+  const gGo = document.getElementById('g-go');
+  if (gGo) gGo.onclick = () => {
     state.graph = {
       op: document.getElementById('g-op').value,
       cls: Number(document.getElementById('g-cls').value) || 0,
@@ -1167,6 +1217,48 @@ async function renderSearch() {
     };
     renderSearch();
   };
+}
+
+function askPanelHtml(res) {
+  const badge = res.source === 'llm' ? '<span class="badge ok">模型规划</span>'
+    : res.source === 'llm-fallback' ? '<span class="badge warn">模型失败 · 规则兜底</span>'
+      : '<span class="badge">规则解析</span>';
+  const plan = res.plan || {};
+  const planText = Object.entries(plan).map(([k, v]) => `${k}=${v}`).join('  ·  ');
+  const evidence = (res.evidence || []).map((x) => `<span class="chip soft">${esc(x)}</span>`).join('');
+  const result = res.result || {};
+  const items = (result.items || [])
+    .filter((item) => !String(item.name || "").startsWith("<"))
+    .slice(0, 20).map((item) => {
+    const meta = [item.layer, item.module, item.hop !== undefined ? `${item.hop} 跳` : '',
+      item.dynamic ? '动态推断' : ''].filter(Boolean).join(' · ');
+    return `<li><a class="jump" href="#/structure?pid=${state.pid}&focus=${encodeURIComponent(item.name)}">
+      <b>${esc(item.name)}</b></a> <span class="muted small">${esc(meta)}</span></li>`;
+  }).join('');
+  const steps = (result.steps || []).map((s) => `<span class="chip">${esc(s.name)}</span>`).join(' → ');
+  let body = '';
+  if (result.error) body = `<p class="muted">${esc(result.error)}</p>`;
+  else if (result.op === 'path') {
+    body = result.found
+      ? `<p class="muted small">${result.direction === 'reverse' ? '反向路径（问题问反了）' : '调用路径'}，
+           ${result.hops} 跳：</p><p>${steps}</p>`
+      : `<p class="muted">没找到路径：${esc(result.message || '两个类之间没有调用关系')}</p>`;
+  } else if (items) {
+    body = `<p class="muted small">命中 ${result.count} 条${result.dynamic_count ? `（含 ${result.dynamic_count} 条动态推断）` : ''}</p>
+      <ul class="plain tight">${items}</ul>`;
+  } else if (result.note) {
+    body = `<p class="muted small">${esc(result.note)}</p>`;
+  }
+  return `
+    <div class="ask-panel">
+      <div class="ask-head">${badge}
+        <span class="mono small">${esc(planText || '—')}</span>
+        <span class="muted small">${res.llm_configured ? '模型可用' : '未配置模型，本次为规则解析'}</span>
+      </div>
+      ${evidence ? `<p class="chips">${evidence}</p>` : ''}
+      ${body}
+      <p class="muted small">这条查询由 <span class="mono">/graph/ask</span> 解析，执行仍走本地图算法；可关掉顶上的开关回到模板查询。</p>
+    </div>`;
 }
 
 /* 同名功能在不同模块里可能各有一条，按名字去重后再展示 */
