@@ -1,0 +1,177 @@
+# AI 赋能的软件逆向工程系统 · 分析流水线声明
+# 说明：
+#   1) 本文件是「分析过程」的唯一声明源，脚本 scripts/render_pipeline.py 读取它生成二维流水线图；
+#   2) 每个阶段都写明用的工具/算法与依据文献，标清哪些环节用大模型、哪些必须确定性；
+#   3) 与 毕设简介.md 的六个模块一一对应，不新增模块，只把「怎么算」写实。
+version: 3
+meta:
+  project: AI 赋能的软件逆向工程系统
+  engine_policy: joern 优先，self 兜底；两引擎写同一套 SQLite 表，下游算法与页面不感知引擎差异
+  determinism: 除「命名」环节可由大模型参与外，其余全部确定性可复现
+  evidence_rule: 每条语义结论必须能回到 Class.method 与源码行号
+
+# y = 流水线阶段（横轴阅读顺序）
+stages:
+  - id: S1
+    name: 仓库接入与预处理
+    tool: core/repo.py
+    layer: 事实层
+    output: projects / files
+    rule: 识别 Maven、Gradle 与模块清单；剔除测试文件；统计语言构成
+    paper: Chikofsky & Cross 1990（逆向工程分类）
+    llm: none
+  - id: S2
+    name: 代码结构解析
+    tool: core/joern.py · core/cpg.py
+    layer: 事实层
+    output: classes / methods / calls / fields
+    rule: Joern 生成 CPG；抽取 AST、CALL、CFG、CDG、DDG、REF 六类边
+    paper: Yamaguchi et al. 2014（代码属性图）
+    llm: none
+  - id: S3
+    name: 结构入库与图查询
+    tool: core/pipeline.py · routers/analysis.py
+    layer: 知识层
+    output: 调用图 · 依赖图 · 图查询接口
+    rule: 调用点必须落到具体类；callee 未解析的调用只作外部依赖候选
+    paper: Kazman et al. 1999（基于证据的架构恢复）
+    llm: none
+  - id: S4
+    name: 代码知识库与检索
+    tool: core/retrieve.py
+    layer: 知识层
+    output: 索引 · Recall@5
+    rule: BM25 与稀疏向量两路，名次 RRF 融合，叠调用图邻居与功能证据一跳
+    paper: Robertson & Zaragoza 2009（BM25）；Cormack et al. 2009（RRF）
+    llm: none
+  - id: S5
+    name: 功能需求恢复
+    tool: core/codegraph.py · core/knowledge.py
+    layer: 语义层
+    output: modules / functions
+    rule: Louvain 社区发现 + 大模型或启发式命名；同层不同类不得同名；访问器折叠
+    paper: Blondel et al. 2008（Louvain）；Hou et al. 2024（LLM4SE 综述）
+    llm: naming
+  - id: S6
+    name: 系统架构恢复
+    tool: core/codegraph.py · core/pipeline.py
+    layer: 语义层
+    output: components / layer_matrix / critical_paths / externals
+    rule: 组件 = 模块 × 分层；给出层间依赖矩阵、入口关键路径、外部依赖与远程终点
+    paper: Kazman et al. 1999；Chikofsky & Cross 1990
+    llm: none
+  - id: S7
+    name: 变更影响分析
+    tool: core/codegraph.py
+    layer: 语义层
+    output: impact
+    rule: 沿调用图反向 BFS，支持方法级起点；输出受影响类、模块、功能与跳数
+    paper: Yamaguchi et al. 2014（图可达性）；Arnold & Bohner 1996（影响分析）
+    llm: none
+  - id: S8
+    name: 文档生成
+    tool: core/docs.py · routers/docs_api.py
+    layer: 交付层
+    output: documents
+    rule: 接口文档、用户手册、完整报告；每条结论带行号，可导出 Markdown 与章节
+    paper: Chikofsky & Cross 1990（再文档化）
+    llm: none
+
+# 算法应用：满足「至少一项算法接入业务流程，有输入、输出与对比」
+algorithms:
+  - id: A1
+    name: Louvain 社区发现
+    stage: S5
+    input: 类级调用图（含类型依赖边，权重 0.4）
+    output: 模块划分
+    baseline: 按 package 划分
+    metric: modularity Q / NMI / cohesion
+    paper: Blondel et al. 2008
+  - id: A2
+    name: 语义检索（RRF 融合）
+    stage: S4
+    input: 自然语言查询
+    output: Top-k 方法
+    baseline: 整串关键词匹配
+    metric: Recall@5
+    paper: Robertson & Zaragoza 2009；Cormack et al. 2009
+  - id: A3
+    name: 命名与归并
+    stage: S5
+    input: 模块成员、证据方法
+    output: 模块名、功能名
+    baseline: 启发式（动词 + 名词 + 限定词）
+    metric: 人工抽样一致率
+    paper: Hou et al. 2024（LLM4SE 综述）
+  - id: A4
+    name: 影响传播（反向可达）
+    stage: S7
+    input: 起点类/方法
+    output: 受影响类集合与跳数
+    baseline: 仅直接调用方（1 跳）
+    metric: 覆盖跳数与功能命中数
+    paper: Arnold & Bohner 1996
+
+# 大模型的边界：只允许参与命名，不允许生成结构事实
+llm_policy:
+  allowed:
+    - 模块命名
+    - 功能条目命名与短语归并
+  forbidden:
+    - 生成或修改类、方法、调用边
+    - 推断未解析的动态分派
+    - 计算指标（模块度、NMI、Recall）
+  guard:
+    - 每条命名结论必须引用证据 Class.method
+    - 未配置 LLM 时自动降级为启发式，页面标注当前模式
+    - 输出必须通过 JSON 结构校验，不合格条目回退启发式
+
+# 二维展示：每页只有两个维度，避免「一页多图」的冗余
+views:
+  - name: 总览
+    dims: [模块, 类数]
+    chart: 指标条 + 模块卡片
+    stage: S5
+  - name: 代码结构
+    dims: [目录, 类数]
+    chart: 嵌套矩形树（面积 = 类数）
+    stage: S2
+  - name: 功能需求
+    dims: [模块, 条目数]
+    chart: 嵌套矩形树 + 证据检查器
+    stage: S5
+  - name: 系统架构
+    dims: [模块, 分层]
+    chart: 矩阵（格子 = 类数 + 依赖条数）
+    stage: S6
+  - name: 变更影响
+    dims: [跳数, 受影响类]
+    chart: 分列扩散图（列 = 跳数）
+    stage: S7
+  - name: 语义检索
+    dims: [排名, 得分]
+    chart: 结果列表 + 证据详情
+    stage: S4
+  - name: 评测对比
+    dims: [方案, Recall@5]
+    chart: 指标表 + 条形对比
+    stage: S4
+  - name: 文档生成
+    dims: [文档类型, 章节]
+    chart: 分栏预览 + 章节勾选
+    stage: S8
+
+# 可核对的硬约束（与「设计约束」一节一致）
+invariants:
+  - id: R1
+    text: 只陈述能回到 文件:行号 的事实
+  - id: R3
+    text: 调用点必须落到具体类，未解析调用只作外部依赖候选
+  - id: R11
+    text: 图面积必须有含义（类数或条目数），不做等宽卡片
+  - id: R12
+    text: 架构图行 = 模块，列 = 分层
+  - id: R13
+    text: 影响图列 = 跳数，边 = 调用方向
+  - id: R17
+    text: 毕设简介与已提交版本只读，实现对齐简介

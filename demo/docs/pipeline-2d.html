@@ -1,0 +1,163 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>分析流水线 · 二维视图</title>
+<style>html,body{margin:0;background:#eef3f9}main{max-width:1280px;margin:0 auto;padding:24px}
+svg{width:100%;height:auto;display:block;border-radius:12px;box-shadow:0 8px 24px #0f172a14}</style>
+</head><body><main><svg xmlns="http://www.w3.org/2000/svg" width="1240" height="980" viewBox="0 0 1240 980">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#dbe3ef"/></marker><pattern id="dot" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#dfe7f2"/></pattern></defs>
+<rect width="1240" height="980" fill="#f5f7fb"/>
+<rect width="1240" height="980" fill="url(#dot)"/>
+<text x="40" y="52" font-size="11" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">● 分析流水线</text>
+<text x="40" y="88" font-size="26" fill="#172033" font-weight="700" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">从 Java 仓库到需求与架构：一条可核对的分析链</text>
+<text x="40" y="114" font-size="12" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">除「命名」环节可由大模型参与外，其余全部确定性可复现</text>
+<text x="1200" y="52" font-size="10.5" fill="#66758a" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="end" letter-spacing="1.2">PIPELINE v3</text>
+<text x="1200" y="72" font-size="10.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="end">joern 优先，self 兜底；两引擎写同一套 SQLite 表，下游算法与页面不感知引擎差异</text>
+<text x="40" y="160" font-size="11" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.4">01</text>
+<text x="66" y="160" font-size="15" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">分析阶段</text>
+<text x="138" y="160" font-size="11.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">横轴阅读；每个阶段写清工具、产物与依据</text>
+<rect x="40" y="178" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="54" y="200" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S1</text>
+<text x="84" y="200" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">仓库接入与预处理</text>
+<text x="54" y="222" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/repo.py</text>
+<text x="54" y="242" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">projects / files</text>
+<text x="54" y="262" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Chikofsky &amp; Cross 1990（逆向工程分类）</text>
+<path d="M312,230.0 L328,230.0" stroke="#dbe3ef" stroke-width="1.4" marker-end="url(#arrow)" fill="none"/>
+<rect x="332" y="178" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="346" y="200" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S2</text>
+<text x="376" y="200" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">代码结构解析</text>
+<text x="346" y="222" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/joern.py · core/cpg.py</text>
+<text x="346" y="242" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">classes / methods / calls / fields</text>
+<text x="346" y="262" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Yamaguchi et al. 2014（代码属性图）</text>
+<path d="M604,230.0 L620,230.0" stroke="#dbe3ef" stroke-width="1.4" marker-end="url(#arrow)" fill="none"/>
+<rect x="624" y="178" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="638" y="200" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S3</text>
+<text x="668" y="200" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">结构入库与图查询</text>
+<text x="638" y="222" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/pipeline.py · routers/analysis.py</text>
+<text x="638" y="242" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">调用图 · 依赖图 · 图查询接口</text>
+<text x="638" y="262" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Kazman et al. 1999（基于证据的架构恢复）</text>
+<path d="M896,230.0 L912,230.0" stroke="#dbe3ef" stroke-width="1.4" marker-end="url(#arrow)" fill="none"/>
+<rect x="916" y="178" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="930" y="200" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S4</text>
+<text x="960" y="200" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">代码知识库与检索</text>
+<text x="930" y="222" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/retrieve.py</text>
+<text x="930" y="242" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">索引 · Recall@5</text>
+<text x="930" y="262" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Robertson &amp; Zaragoza 2009（BM25）；Corm…</text>
+<rect x="40" y="300" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="54" y="322" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S5</text>
+<text x="84" y="322" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">功能需求恢复</text>
+<circle cx="292" cy="318" r="4" fill="#0ea5a4"/>
+<text x="282" y="322" font-size="9" fill="#0ea5a4" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="end">LLM</text>
+<text x="54" y="344" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/codegraph.py · core/knowledge.py</text>
+<text x="54" y="364" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">modules / functions</text>
+<text x="54" y="384" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Blondel et al. 2008（Louvain）；Hou et …</text>
+<path d="M312,352.0 L328,352.0" stroke="#dbe3ef" stroke-width="1.4" marker-end="url(#arrow)" fill="none"/>
+<rect x="332" y="300" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="346" y="322" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S6</text>
+<text x="376" y="322" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">系统架构恢复</text>
+<text x="346" y="344" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/codegraph.py · core/pipeline.py</text>
+<text x="346" y="364" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">components / layer_matrix / critical_…</text>
+<text x="346" y="384" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Kazman et al. 1999；Chikofsky &amp; Cross 1…</text>
+<path d="M604,352.0 L620,352.0" stroke="#dbe3ef" stroke-width="1.4" marker-end="url(#arrow)" fill="none"/>
+<rect x="624" y="300" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="638" y="322" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S7</text>
+<text x="668" y="322" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">变更影响分析</text>
+<text x="638" y="344" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/codegraph.py</text>
+<text x="638" y="364" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">impact</text>
+<text x="638" y="384" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Yamaguchi et al. 2014（图可达性）；Arnol…</text>
+<path d="M896,352.0 L912,352.0" stroke="#dbe3ef" stroke-width="1.4" marker-end="url(#arrow)" fill="none"/>
+<rect x="916" y="300" width="268" height="104" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="930" y="322" font-size="10.5" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">S8</text>
+<text x="960" y="322" font-size="13.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">文档生成</text>
+<text x="930" y="344" font-size="10" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">core/docs.py · routers/docs_api.py</text>
+<text x="930" y="364" font-size="11" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">documents</text>
+<text x="930" y="384" font-size="9.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">依据 Chikofsky &amp; Cross 1990（再文档化）</text>
+<path d="M1050.0,284 L1050.0,293 L174.0,293 L174.0,298" stroke="#dbe3ef" stroke-width="1.2" stroke-dasharray="4 3" fill="none" marker-end="url(#arrow)"/>
+<text x="182.0" y="290" font-size="9" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">承接上一行</text>
+<text x="40" y="470" font-size="11" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.4">02</text>
+<text x="66" y="470" font-size="15" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">算法接入</text>
+<text x="138" y="470" font-size="11.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">输入 / 输出 / 对照基线 / 指标，可在评测页复现</text>
+<rect x="40" y="488" width="276" height="96" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="54" y="510" font-size="10.5" fill="#16835b" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">A1</text>
+<text x="84" y="510" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">Louvain 社区发现</text>
+<text x="54" y="532" font-size="10.5" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">类级调用图（含类型依赖边，权重 0.4） → 模块…</text>
+<text x="54" y="550" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">基线 按 package 划分</text>
+<text x="54" y="568" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">指标 modularity Q / NMI / cohesion</text>
+<rect x="336" y="488" width="276" height="96" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="350" y="510" font-size="10.5" fill="#16835b" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">A2</text>
+<text x="380" y="510" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">语义检索（RRF 融合）</text>
+<text x="350" y="532" font-size="10.5" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">自然语言查询 → Top-k 方法</text>
+<text x="350" y="550" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">基线 整串关键词匹配</text>
+<text x="350" y="568" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">指标 Recall@5</text>
+<rect x="632" y="488" width="276" height="96" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="646" y="510" font-size="10.5" fill="#16835b" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">A3</text>
+<text x="676" y="510" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">命名与归并</text>
+<text x="646" y="532" font-size="10.5" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">模块成员、证据方法 → 模块名、功能名</text>
+<text x="646" y="550" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">基线 启发式（动词 + 名词 + 限定词）</text>
+<text x="646" y="568" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">指标 人工抽样一致率</text>
+<rect x="928" y="488" width="276" height="96" rx="10" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="942" y="510" font-size="10.5" fill="#16835b" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.2">A4</text>
+<text x="972" y="510" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">影响传播（反向可达）</text>
+<text x="942" y="532" font-size="10.5" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">起点类/方法 → 受影响类集合与跳数</text>
+<text x="942" y="550" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">基线 仅直接调用方（1 跳）</text>
+<text x="942" y="568" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">指标 覆盖跳数与功能命中数</text>
+<text x="40" y="632" font-size="11" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.4">03</text>
+<text x="66" y="632" font-size="15" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">结果展示</text>
+<text x="138" y="632" font-size="11.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">每页只有两个维度，图里有面积或位置的含义</text>
+<rect x="40" y="650" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="54" y="674" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">总览</text>
+<text x="54" y="694" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">模块 × 类数</text>
+<text x="54" y="712" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">指标条 + 模块卡片</text>
+<rect x="332" y="650" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="346" y="674" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">代码结构</text>
+<text x="346" y="694" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">目录 × 类数</text>
+<text x="346" y="712" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">嵌套矩形树（面积 = 类数）</text>
+<rect x="624" y="650" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="638" y="674" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">功能需求</text>
+<text x="638" y="694" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">模块 × 条目数</text>
+<text x="638" y="712" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">嵌套矩形树 + 证据检查器</text>
+<rect x="916" y="650" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="930" y="674" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">系统架构</text>
+<text x="930" y="694" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">模块 × 分层</text>
+<text x="930" y="712" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">矩阵（格子 = 类数 + 依赖条数）</text>
+<rect x="40" y="738" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="54" y="762" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">变更影响</text>
+<text x="54" y="782" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">跳数 × 受影响类</text>
+<text x="54" y="800" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">分列扩散图（列 = 跳数）</text>
+<rect x="332" y="738" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="346" y="762" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">语义检索</text>
+<text x="346" y="782" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">排名 × 得分</text>
+<text x="346" y="800" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">结果列表 + 证据详情</text>
+<rect x="624" y="738" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="638" y="762" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">评测对比</text>
+<text x="638" y="782" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">方案 × Recall@5</text>
+<text x="638" y="800" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">指标表 + 条形对比</text>
+<rect x="916" y="738" width="268" height="74" rx="9" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="930" y="762" font-size="12.5" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">文档生成</text>
+<text x="930" y="782" font-size="10.5" fill="#2563eb" font-weight="500" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">文档类型 × 章节</text>
+<text x="930" y="800" font-size="10" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">分栏预览 + 章节勾选</text>
+<text x="40" y="830" font-size="11" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start" letter-spacing="1.4">04</text>
+<text x="66" y="830" font-size="15" fill="#172033" font-weight="650" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">硬约束</text>
+<text x="123" y="830" font-size="11.5" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">与「设计约束」一致，实现里逐条可查</text>
+<rect x="40" y="846" width="186" height="60" rx="8" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="50" y="864" font-size="10" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">R1</text>
+<text x="50" y="880" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">只陈述能回到 文件:行号 的事实</text>
+<rect x="238" y="846" width="186" height="60" rx="8" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="248" y="864" font-size="10" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">R3</text>
+<text x="248" y="880" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">调用点必须落到具体类，未解析调用</text>
+<text x="248" y="893" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">只作外部依赖候选</text>
+<rect x="436" y="846" width="186" height="60" rx="8" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="446" y="864" font-size="10" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">R11</text>
+<text x="446" y="880" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">图面积必须有含义（类数或条目数）</text>
+<text x="446" y="893" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">，不做等宽卡片</text>
+<rect x="634" y="846" width="186" height="60" rx="8" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="644" y="864" font-size="10" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">R12</text>
+<text x="644" y="880" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">架构图行 = 模块，列 = 分层</text>
+<rect x="832" y="846" width="186" height="60" rx="8" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="842" y="864" font-size="10" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">R13</text>
+<text x="842" y="880" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">影响图列 = 跳数，边 = 调用方向</text>
+<rect x="1030" y="846" width="186" height="60" rx="8" fill="#ffffff" stroke="#dbe3ef" stroke-width="1"/>
+<text x="1040" y="864" font-size="10" fill="#2563eb" font-weight="600" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="start">R17</text>
+<text x="1040" y="880" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">毕设简介与已提交版本只读，实现对</text>
+<text x="1040" y="893" font-size="9.2" fill="#172033" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">齐简介</text>
+<text x="40" y="954" font-size="11" fill="#66758a" font-weight="400" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="start">LLM 仅参与命名（青点标记），结构事实、图可达性与指标全部由确定性算法产出</text>
+<text x="1200" y="954" font-size="9.5" fill="#66758a" font-weight="400" font-family="'JetBrains Mono', ui-monospace, Consolas, monospace" text-anchor="end">render_pipeline.py · source: docs/analysis-pipeline.yaml</text>
+</svg></main></body></html>
