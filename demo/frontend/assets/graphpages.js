@@ -62,6 +62,11 @@
       children.get(n.parent).push(n);
     });
     const { wrap, pane, insp } = shell('', inspector);
+    function setInsp(html) {
+      insp.innerHTML = html || '';
+      insp.classList.toggle('has', Boolean((html || '').trim()));
+    }
+    setInsp(inspector || '');
     const railEl = wrap.querySelector('.map-rail');
     let canvas = null;
 
@@ -132,7 +137,7 @@
       }
       paintRail();
       const first = vis.find((n) => n.parent == null);
-      if (first && onPick) insp.innerHTML = onPick(byId.get(first.id)) || '';
+      if (first && onPick) setInsp(onPick(byId.get(first.id)) || '');
     }
 
     railEl.addEventListener('click', (event) => {
@@ -140,7 +145,7 @@
       if (!row) return;
       const id = row.dataset.node;
       if (canvas && canvas.select) canvas.select(id);
-      if (onPick) insp.innerHTML = onPick(byId.get(id)) || '';
+      if (onPick) setInsp(onPick(byId.get(id)) || '');
     });
     railEl.addEventListener('dblclick', (event) => {
       const row = event.target.closest('.mt-row');

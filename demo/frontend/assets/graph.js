@@ -7,7 +7,7 @@
     接入层: '#0891b2', 业务层: '#7c3aed', 数据层: '#14b8a6', 领域层: '#e8a33d',
     公共层: '#10b981', 外部依赖: '#d4a017', 其他: '#64748b',
   };
-  const EDGE_COLOR = { contains: '#b6c3d1', depends: '#7c8ea3', dynamic: '#d4a017', call: '#9aa8bb' };
+  const EDGE_COLOR = { contains: '#3c5a4c', depends: '#4f7d69', dynamic: '#d4a017', call: '#40614f' };
 
   const esc = (v) => String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -205,7 +205,14 @@
     } = opts || {};
     const box = document.createElement('div');
     box.className = 'fg';
-    box.innerHTML = `<div class="fg-head"><span class="fg-title">${esc(title)}</span><span class="fg-count">${nodes.length} 节点 · ${edges.length} 关系</span></div>`;
+    box.innerHTML = `<div class="fg-head">
+      <span class="fg-title">${esc(title)}</span>
+      <span class="fg-count">${nodes.length} 节点 · ${edges.length} 关系</span>
+      <span class="fg-tools">
+        <button class="fg-btn" data-fg="fit">适应</button>
+        <button class="fg-btn" data-fg="svg">导出 SVG</button>
+      </span>
+    </div>`;
     const view = document.createElement('div');
     view.className = 'fg-view';
     const svg = document.createElementNS(NS, 'svg');
@@ -228,7 +235,7 @@
     svg.innerHTML = `
       <defs>
         <marker id="fg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M0 0 L10 5 L0 10 z" fill="#7c8ea3"></path>
+          <path d="M0 0 L10 5 L0 10 z" fill="#6f9d86"></path>
         </marker>
         <marker id="fg-arrow-dyn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M0 0 L10 5 L0 10 z" fill="#d4a017"></path>
@@ -246,9 +253,11 @@
     }
     if (emptyNote) box.insertAdjacentHTML('beforeend', `<p class="muted small fg-note">${esc(emptyNote)}</p>`);
 
+    let layoutWidth = width;
     if (!nodes.length) return box;
     if (vertical) {
       const needW = layoutTree(nodes, width, height);
+      layoutWidth = needW;
       if (needW > width) {
         svg.setAttribute('viewBox', `0 0 ${needW} ${height}`);
         svg.setAttribute('width', needW);
@@ -304,12 +313,12 @@
         const label = clip(nd.label, nd.w - 16);
         const nameY = nd.meta ? 17 : nd.h / 2 + 4;
         const meta = nd.meta
-          ? `<text class="fg-meta" x="10" y="32" font-size="9.5" fill="#66758a">${esc(clip(nd.meta, nd.w - 16))}</text>`
+          ? `<text class="fg-meta" x="10" y="32" font-size="9.5" fill="#7e8f86">${esc(clip(nd.meta, nd.w - 16))}</text>`
           : '';
         return `<g class="fg-node" data-id="${esc(nd.id)}" transform="translate(${x},${y})">
-          <rect width="${nd.w}" height="${nd.h}" rx="7" fill="#ffffff" stroke="${color}" stroke-width="1.6"></rect>
+          <rect width="${nd.w}" height="${nd.h}" rx="6" fill="#0e1613" stroke="#31503f" stroke-width="1"></rect>
           <rect width="3" height="${nd.h}" rx="1.5" fill="${color}"></rect>
-          <text x="10" y="${nameY}" font-size="11.5" fill="#172033">${esc(label)}</text>
+          <text x="10" y="${nameY}" font-size="11.5" fill="#d7e5dc">${esc(label)}</text>
           ${meta}
           <title>${esc(nd.label)}${nd.meta ? '\n' + esc(nd.meta) : ''}</title>
         </g>`;
@@ -327,10 +336,10 @@
     let picked = null;
     function select(node) {
       picked = node;
-      gNodes.querySelectorAll('.fg-node rect:first-child').forEach((r) => r.setAttribute('stroke-width', '1.6'));
+      gNodes.querySelectorAll('.fg-node rect:first-child').forEach((r) => { r.setAttribute('stroke', '#31503f'); r.setAttribute('stroke-width', '1'); });
       const g = gNodes.querySelector(`.fg-node[data-id="${CSS.escape(node.id)}"]`);
       const rect = g && g.querySelector('rect');
-      if (rect) rect.setAttribute('stroke-width', '2.6');
+      if (rect) { rect.setAttribute('stroke', '#9ee9ca'); rect.setAttribute('stroke-width', '1.8'); }
       if (inspector && onPick) inspector.innerHTML = onPick(node) || '';
     }
 
@@ -385,6 +394,24 @@
       cam.setAttribute('transform', `translate(${pan.x},${pan.y}) scale(${scale})`);
     });
     window.addEventListener('pointerup', () => { panStart = null; });
+
+    box.querySelector('[data-fg="fit"]').onclick = () => {
+      scale = 1;
+      pan = { x: 0, y: 0 };
+      cam.setAttribute('transform', 'translate(0,0) scale(1)');
+      view.scrollLeft = 0;
+    };
+    box.querySelector('[data-fg="svg"]').onclick = () => {
+      const clone = svg.cloneNode(true);
+      clone.setAttribute('xmlns', NS);
+      clone.setAttribute('width', layoutWidth || width);
+      const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (String(title).replace(/[\\/:*?"<>|]/g, '_') || 'graph') + '.svg';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
 
     return box;
   }
