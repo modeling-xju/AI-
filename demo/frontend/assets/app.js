@@ -662,9 +662,12 @@ function wsBuildTree(data) {
 }
 
 function wsFileRow(f, depth) {
+  const dot = (f.classes || []).length ? '◆' : '◇';
   return `<button class="wfile ${f.id === WS.file ? 'on' : ''}" data-file="${f.id}" style="--d:${depth}">
-    <span class="wfile-name">${esc(f.name)}</span>
-    <span class="wfile-meta">${f.loc || 0} 行${(f.classes || []).length ? ` · ${f.classes.length} 类` : ''}</span></button>`;
+    <span class="wcaret leaf"></span>
+    <span class="wfile-dot">${dot}</span>
+    <span class="wfile-name" title="${esc(f.name)}">${esc(f.name)}</span>
+    <span class="wfile-meta" title="${(f.classes || []).length} 类">${f.loc || 0} 行</span></button>`;
 }
 
 function wsTreeRows(node, depth, q) {
@@ -677,8 +680,9 @@ function wsTreeRows(node, depth, q) {
     if (!inner.length && !files.length) return;
     const open = q ? true : WS.open.has(dir.path) || depth === 0;
     out.push(`<details class="wdir" data-path="${esc(dir.path)}" ${open ? 'open' : ''}>
-      <summary style="--d:${depth}"><span class="wdir-name">${esc(dir.name)}</span><span class="wfile-meta">${files.length || ''}</span></summary>
-      ${files.map((f) => wsFileRow(f, depth + 1)).join('')}${inner.join('')}</details>`);
+      <summary style="--d:${depth}"><span class="wcaret">${open ? '−' : '+'}</span><span class="wdir-name">${esc(dir.name)}</span>
+        <span class="wfile-meta">${files.length || ''}</span></summary>
+      <div class="wkids">${files.map((f) => wsFileRow(f, depth + 1)).join('')}${inner.join('')}</div></details>`);
   });
   return out;
 }

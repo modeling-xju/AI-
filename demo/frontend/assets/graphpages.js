@@ -61,8 +61,31 @@
       if (!children.has(n.parent)) children.set(n.parent, []);
       children.get(n.parent).push(n);
     });
-    const { wrap, pane, insp } = shell(rail, inspector);
+    const { wrap, pane, insp } = shell('', inspector);
+    const railEl = wrap.querySelector('.map-rail');
     let canvas = null;
+
+    function treeRows(list, depth) {
+      return list.map((n) => {
+        const kids = children.get(n.id) || [];
+        const open = expanded.has(n.id);
+        return `<div class="mt-node">
+          <button class="mt-row" data-node="${esc(n.id)}" style="--d:${depth}">
+            <span class="mt-caret">${kids.length ? (open ? '−' : '+') : ''}</span>
+            <span class="mt-name">${esc(n.label)}</span>
+            ${kids.length ? `<span class="mt-count">${kids.length}</span>` : ''}
+          </button>
+          ${kids.length && open ? `<div class="mt-kids">${treeRows(kids, depth + 1)}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    function paintRail() {
+      const roots = nodes.filter((n) => n.parent == null);
+      railEl.innerHTML = `<p class="rail-eyebrow"><i></i>结构</p>
+        <div class="mtree">${treeRows(roots, 0)}</div>
+        <div class="mt-extra">${rail}</div>`;
+    }
 
     function visible() {
       const out = [];
@@ -107,10 +130,27 @@
           if (real && Math.abs(real - W) > 8) paint(real);
         });
       }
+      paintRail();
       const first = vis.find((n) => n.parent == null);
       if (first && onPick) insp.innerHTML = onPick(byId.get(first.id)) || '';
     }
 
+    railEl.addEventListener('click', (event) => {
+      const row = event.target.closest('.mt-row');
+      if (!row) return;
+      const id = row.dataset.node;
+      if (canvas && canvas.select) canvas.select(id);
+      if (onPick) insp.innerHTML = onPick(byId.get(id)) || '';
+    });
+    railEl.addEventListener('dblclick', (event) => {
+      const row = event.target.closest('.mt-row');
+      if (!row) return;
+      const id = row.dataset.node;
+      if (!children.has(id)) return;
+      if (expanded.has(id)) expanded.delete(id);
+      else expanded.add(id);
+      paint();
+    });
     insp.addEventListener('click', (event) => {
       if (!onAction) return;
       const btn = event.target.closest('[data-act]');

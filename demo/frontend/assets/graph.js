@@ -318,6 +318,10 @@
 
     drawEdges();
     drawNodes();
+    box.select = (id) => {
+      const nd = byId.get(id);
+      if (nd) select(nd);
+    };
 
     // 点击节点 → 右侧检查器；双击 → 展开/折叠子层
     let picked = null;

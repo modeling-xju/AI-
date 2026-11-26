@@ -1135,3 +1135,45 @@ details.hl > summary { border-radius: 3px; }
 .wdir > summary { justify-content: flex-start; gap: 8px; padding-left: calc(6px + var(--d, 0) * 13px); }
 .wfile { justify-content: flex-start; gap: 8px; padding-left: calc(8px + var(--d, 0) * 13px); }
 .wdir > summary .wfile-meta, .wfile .wfile-meta { margin-left: auto; }
+
+/* 目录树：缩进引导线 + 展开箭头 + 文件点 */
+.wdir > summary { display: flex; align-items: center; gap: 7px; justify-content: flex-start;
+  padding: 4px 8px 4px calc(4px + var(--d, 0) * 13px); }
+.wcaret { width: 10px; flex: none; color: #94a3b8; font-size: 10px; line-height: 1; }
+.wcaret::before { content: '▸'; display: inline-block; transition: transform .12s ease; }
+.wdir[open] > summary > .wcaret::before { transform: rotate(90deg); }
+.wcaret.leaf::before { content: ''; }
+.wkids { margin-left: calc(8px + var(--d, 0) * 13px); border-left: 1px solid var(--line-soft); padding-left: 7px; }
+.wdir-name { font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wfile { display: flex; align-items: center; gap: 6px; justify-content: flex-start; width: 100%;
+  padding: 4px 8px 4px 4px; border: 0; background: none; text-align: left; cursor: pointer; border-radius: 7px;
+  font-size: 12px; color: #334155; }
+.wfile-dot { color: #a8b3c2; font-size: 8px; flex: none; }
+.wfile.on .wfile-dot { color: #1d4ed8; }
+.wfile-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wfile-meta { margin-left: auto; color: var(--faint); font: 400 10.5px var(--mono); flex: none; }
+
+/* 图谱页左栏：结构树 */
+.mtree { display: flex; flex-direction: column; gap: 1px; margin-bottom: 14px; }
+.mt-kids { margin-left: calc(6px + 0px); border-left: 1px solid var(--line-soft); padding-left: 7px; }
+.mt-row { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 6px 4px calc(2px + var(--d, 0) * 12px);
+  border: 0; background: none; text-align: left; cursor: pointer; border-radius: 6px; color: #334155; }
+.mt-row:hover { background: var(--hover, #eef2f8); }
+.mt-row.on { background: #e8f0fd; color: #1d4ed8; font-weight: 600; }
+.mt-caret { width: 9px; flex: none; color: #94a3b8; font-size: 9px; }
+.mt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.mt-count { margin-left: auto; color: var(--faint); font: 400 10px var(--mono); flex: none; }
+.mt-extra .rail-eyebrow { margin-top: 6px; }
+
+/* 目录树：隐藏 details 默认三角 */
+.wdir > summary { list-style: none; }
+.wdir > summary::-webkit-details-marker { display: none; }
+.map-rail { display: flex; flex-direction: column; align-items: stretch; }
+.mt-caret { width: 10px; color: #64748b; font-size: 10px; }
+.mtree { margin-bottom: 10px; }
+.mt-extra { border-top: 1px solid var(--line-soft); padding-top: 10px; }
+
+.wcaret { font-size: 12px; color: #64748b; text-align: center; }
+.wcaret::before, .wcaret.leaf::before { content: none; }
+.mt-caret { font-size: 11px; color: #64748b; text-align: center; font-family: var(--mono); }
+.wdir > summary::marker, .wdir > summary::-webkit-details-marker { content: none; display: none; }
