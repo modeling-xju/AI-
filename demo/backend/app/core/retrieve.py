@@ -125,10 +125,12 @@ def build_index(pid):
     average = sum(lengths.values()) / float(len(lengths) or 1)
 
     vectors, idf = _build_vectors(docs, postings, len(docs))
+    latent = _latent_space(vectors, idf, LATENT_DIM)
     neighbors = _class_neighbors(pid)
     evidence = _evidence_map(pid, docs)
     INDEXES[pid] = {"docs": docs, "postings": postings, "lengths": lengths,
                     "average": average, "vectors": vectors, "idf": idf,
+                    "latent": latent,
                     "neighbors": neighbors, "evidence": evidence, "dim": len(idf),
                     "signature": _signature(pid)}
     return INDEXES[pid]
@@ -145,6 +147,53 @@ def _evidence_map(pid, docs):
         if evidence in by_title:
             mapping[row["name"]] = by_title[evidence]
     return mapping
+
+
+LATENT_DIM = 96
+LSA_WEIGHT = 0.30   # 潜在语义权重；其余给词项点积
+
+
+def _latent_space(vectors, idf, k):
+    """对 tf-idf 矩阵做截断 SVD，得到潜在语义（LSA）稠密向量。
+
+    这是「向量通道」的语义来源：不再是逐词项重叠，而是把共现频繁的
+    词项压到同一维上，中文查询与英文标识符之间才有机会靠近。
+    numpy 不可用时返回 None，调用方自动退回稀疏点积。
+    """
+    try:
+        import numpy as np
+    except Exception:
+        return None
+    terms = sorted(idf)
+    if not terms or not vectors:
+        return None
+    position = {term: index for index, term in enumerate(terms)}
+    matrix = np.zeros((len(vectors), len(terms)), dtype="float32")
+    for row, vector in enumerate(vectors):
+        for term, value in vector.items():
+            matrix[row, position[term]] = value
+    if not matrix.any():
+        return None
+    k = int(min(k, min(matrix.shape)))
+    try:
+        u, s, vt = np.linalg.svd(matrix, full_matrices=False)
+    except Exception:
+        return None
+    u, s, vt = u[:, :k], s[:k], vt[:k, :]
+    # 逐维定号，保证同一份数据每次分解结果一致
+    for j in range(k):
+        if float(vt[j].sum()) < 0:
+            vt[j] = -vt[j]
+            u[:, j] = -u[:, j]
+    docs = u * s
+    norm = np.linalg.norm(docs, axis=1, keepdims=True)
+    norm[norm == 0] = 1.0
+    docs = docs / norm
+    terms_matrix = vt.T
+    tnorm = np.linalg.norm(terms_matrix, axis=0, keepdims=True)
+    tnorm[tnorm == 0] = 1.0
+    terms_matrix = terms_matrix / tnorm
+    return {"doc": docs, "term": terms_matrix, "terms": position, "k": k}
 
 
 def _build_vectors(docs, postings, total):
@@ -224,7 +273,50 @@ def _bm25_scores(index, terms):
 
 
 def _vector_scores(index, terms):
+    """向量通道：优先用 LSA 潜在语义向量，numpy 不可用时退回稀疏点积。"""
     idf = index["idf"]
+    latent = index.get("latent")
+    if latent:
+        try:
+            import numpy as np
+        except Exception:
+            latent = None
+    if latent:
+        position = latent["terms"]
+        k = latent["k"]
+        query = np.zeros(k, dtype="float32")
+        hit = False
+        for term in terms:
+            if term in position:
+                query += idf.get(term, 1.0) * latent["term"][position[term]]
+                hit = True
+        if not hit:
+            return {}
+        norm = float(np.linalg.norm(query)) or 1.0
+        query = query / norm
+        docs = latent["doc"]
+        dense = docs.dot(query)
+
+        # 稀疏点积仍然有用：标识符、类名这类精确词项在 LSA 里会被压平，
+        # 所以两路各归一化后混合，而不是整条替换掉。
+        sparse_query = {}
+        for term in terms:
+            if term in idf:
+                sparse_query[term] = idf[term]
+        snorm = math.sqrt(sum(value * value for value in sparse_query.values())) or 1.0
+        sparse_query = {term: value / snorm for term, value in sparse_query.items()}
+        scores = {}
+        for doc_id, vector in enumerate(index["vectors"]):
+            lexical = 0.0
+            for term, weight in sparse_query.items():
+                value = vector.get(term)
+                if value:
+                    lexical += weight * value
+            latent_score = float(dense[doc_id]) if doc_id < len(dense) else 0.0
+            score = LSA_WEIGHT * latent_score + (1.0 - LSA_WEIGHT) * lexical
+            if score > 1e-6:
+                scores[doc_id] = score
+        return scores
     query = {}
     for term in terms:
         if term in idf:

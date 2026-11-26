@@ -1228,8 +1228,8 @@ async function renderImpact() {
           <div class="hop-col">
             <p class="hop-head">${i + 1} 跳 · ${list.length} 个类</p>
             ${list.map((c) => `<div class="hop-item"><b><a class="jump" href="#/structure?focus=${encodeURIComponent(c.name)}"
-              title="在代码结构中定位">${esc(c.name)}</a></b>
-              <small>${esc(c.layer || '')}${c.module ? ' · ' + esc(c.module) : ''}</small></div>`).join('')}
+              title="${c.dynamic ? '动态推断可达（接口/实现或反射），不是静态调用' : '在代码结构中定位'}">${esc(c.name)}</a></b>
+              <small>${esc(c.layer || '')}${c.module ? ' · ' + esc(c.module) : ''}${c.dynamic ? ' · 动态推断' : ''}</small></div>`).join('')}
           </div>`).join(''));
     const chains = (r.chains || []).map((chain) => `
       <li class="chain">${chain.map((c, i) => `${i ? '<span class="arrow">←</span>' : ''}
@@ -1241,6 +1241,7 @@ async function renderImpact() {
         <div><b>${r.functions.length}</b><span>涉及功能</span></div>
         <div><b>${hops}</b><span>最大跳数</span></div>
       </div>
+      ${r.dynamic_count ? `<p class="muted small-note">其中 ${r.dynamic_count} 个类是通过「接口 ↔ 实现」或反射字面量推断出来的动态可达，静态调用图里看不到。</p>` : ''}
       <div id="impact-map"></div>
       <div id="impact-list" ${VIEW.impact === 'map' ? 'hidden' : ''}>
       <h2>影响扩散</h2>

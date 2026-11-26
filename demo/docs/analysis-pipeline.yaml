@@ -41,7 +41,7 @@ stages:
     tool: core/retrieve.py
     layer: 知识层
     output: 索引 · Recall@5
-    rule: BM25 与稀疏向量两路，名次 RRF 融合，叠调用图邻居与功能证据一跳
+    rule: BM25 与 LSA（tf-idf 截断 SVD，96 维，词项 3:7 混合）两路，名次 RRF 融合，叠调用图邻居与功能证据一跳
     paper: Robertson & Zaragoza 2009（BM25）；Cormack et al. 2009（RRF）
     llm: none
   - id: S5
@@ -65,7 +65,7 @@ stages:
     tool: core/codegraph.py
     layer: 语义层
     output: impact
-    rule: 沿调用图反向 BFS，支持方法级起点；输出受影响类、模块、功能与跳数
+    rule: 沿调用图反向 BFS，支持方法级起点；补接口↔实现与反射字面量的「动态推断」边，单独标记
     paper: Yamaguchi et al. 2014（图可达性）；Arnold & Bohner 1996（影响分析）
     llm: none
   - id: S8

@@ -3,6 +3,8 @@
 
 只依赖标准库：图用 {节点: {邻居: 权重}} 表示，节点是类 id。
 """
+import io
+import os
 import random
 import re
 from collections import defaultdict
@@ -594,6 +596,88 @@ def _in_degree(by_id, out_edges):
     return degree
 
 
+_IMPL_CACHE = {}
+_REFLECT_CACHE = {}
+
+
+def _base_name(name):
+    """把 IX / FooImpl / FooServiceImpl 归到同一个契约名，用于接口↔实现配对。"""
+    name = name or ""
+    if name.endswith("Impl"):
+        name = name[:-4]
+    for suffix in ("Service", "Client", "Dao", "Mapper"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    if len(name) > 1 and name[0] == "I" and name[1].isupper():
+        name = name[1:]
+    return name
+
+
+def _impl_families(pid, rows):
+    """同一个契约名底下的类，互相视为「动态可能到达」。"""
+    cached = _IMPL_CACHE.get(pid)
+    if cached is not None:
+        return cached
+    family = defaultdict(list)
+    for row in rows:
+        name = row["name"] or ""
+        # 只把「接口」和「实现类」放进同一族；实体、Mapper、Wrapper 不算契约实现，
+        # 否则 User 会和 UserMapper 被当成一对，影响范围会被放大。
+        if not (name.endswith("Impl") or (len(name) > 1 and name[0] == "I" and name[1].isupper())):
+            continue
+        key = _base_name(name)
+        if key:
+            family[key].append(row["id"])
+    _IMPL_CACHE[pid] = dict(family)
+    return _IMPL_CACHE[pid]
+
+
+def _reflection_map(pid):
+    """按文件扫反射/容器取址的字面量：forName("a.b.C")、getBean(X.class)。
+
+    只做文件级映射：命中的类 A 被视为可能动态到达 B。
+    这是启发式，宁多勿漏，页面上会标成「动态推断」。
+    """
+    cached = _REFLECT_CACHE.get(pid)
+    if cached is not None:
+        return cached
+    result = defaultdict(set)
+    project = db.query_one("SELECT root FROM projects WHERE id=?", (pid,))
+    root = (project or {}).get("root") or ""
+    classes = db.query("SELECT id, name, package FROM classes WHERE project_id=?", (pid,))
+    by_fqn = {}
+    for row in classes:
+        fqn = ((row["package"] + ".") if row["package"] else "") + row["name"]
+        by_fqn[fqn] = row["id"]
+        by_fqn.setdefault(row["name"], row["id"])
+    if root and os.path.isdir(root):
+        pattern = re.compile(r'forName\s*\(\s*"([\w.$]+)"|getBean\s*\(\s*([A-Za-z_$][\w$]*)\.class')
+        for file_row in db.query("SELECT id, path FROM files WHERE project_id=?", (pid,)):
+            full = os.path.join(root, str(file_row["path"]).replace("\\", "/"))
+            if not os.path.isfile(full):
+                continue
+            try:
+                text = io.open(full, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            targets = set()
+            for match in pattern.finditer(text):
+                target = match.group(1) or match.group(2)
+                if not target:
+                    continue
+                target_id = by_fqn.get(target) or by_fqn.get(target.split(".")[-1])
+                if target_id:
+                    targets.add(target_id)
+            if not targets:
+                continue
+            for class_row in db.query("SELECT id FROM classes WHERE project_id=? AND file_id=?",
+                                      (pid, file_row["id"])):
+                result[class_row["id"]].update(targets)
+    _REFLECT_CACHE[pid] = dict(result)
+    return _REFLECT_CACHE[pid]
+
+
 def impact(pid, class_id, method=None):
     """沿调用图反向 BFS：谁调用了它，谁又调用了那些人。
 
@@ -610,9 +694,24 @@ def impact(pid, class_id, method=None):
     for row in callers:
         reverse[row["callee_id"]].add(row["caller_id"])
 
+    # 动态边：接口↔实现同族、反射/容器取址的字面量。静态调用图看不到这些，
+    # 影响分析里补一层「动态推断」，页面上单独标记，避免和静态可达混淆。
+    families = _impl_families(pid, classes)
+    reflection = _reflection_map(pid)
+    dynamic_edges = defaultdict(set)
+    for ids in families.values():
+        if len(ids) < 2:
+            continue
+        for left in ids:
+            dynamic_edges[left].update(other for other in ids if other != left)
+    for source, targets in reflection.items():
+        dynamic_edges[source].update(target for target in targets if target != source)
+    dynamic_marks = set()
+
     seen = {class_id}
     dist = {class_id: 0}
     parent = {}
+    dynamic = set()
     queue = [class_id]
     if method:
         first = [row["caller_id"] for row in db.query(
@@ -634,6 +733,13 @@ def impact(pid, class_id, method=None):
                 dist[caller] = dist[current] + 1
                 parent[caller] = current
                 queue.append(caller)
+        for target in sorted(dynamic_edges.get(current, ())):
+            if target not in seen:
+                seen.add(target)
+                dist[target] = dist[current] + 1
+                parent[target] = current
+                dynamic.add(target)
+                queue.append(target)
 
     origin = by_id[class_id]
     modules = db.query("SELECT id, name FROM modules WHERE project_id=? ORDER BY id", (pid,))
@@ -664,7 +770,9 @@ def impact(pid, class_id, method=None):
     return {
         "origin": {"id": origin["id"], "name": origin["name"], "layer": origin["layer"],
                    "method": method or ""},
-        "classes": [{**node(n), "hop": dist[n], "parent": parent.get(n)} for n in sorted(seen, key=lambda x: (dist[x], x))],
+        "classes": [{**node(n), "hop": dist[n], "parent": parent.get(n),
+                     "dynamic": n in dynamic} for n in sorted(seen, key=lambda x: (dist[x], x))],
+        "dynamic_count": len(dynamic),
         "chains": chains,
         "max_hop": max(dist.values()) if dist else 0,
         "modules": [{"id": mid, "name": module_names.get(mid, "")}
