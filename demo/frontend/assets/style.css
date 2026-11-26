@@ -1065,3 +1065,73 @@ details.hl > summary { border-radius: 3px; }
 .fg .insp-hint { padding: 12px; color: var(--muted); font-size: 12px; }
 
 .fg-col { font: 500 10px var(--mono); fill: var(--muted); letter-spacing: .12em; }
+
+/* ---------------------------------------------------- 代码结构：三栏工作台 */
+.ws { display: grid; grid-template-columns: 236px minmax(0, 1fr) 320px; border: 1px solid var(--line);
+  border-radius: 14px; overflow: hidden; background: var(--card); margin-bottom: 14px; }
+.ws-tree { border-right: 1px solid var(--line); background: #f7f9fc; display: flex; flex-direction: column; max-height: 620px; }
+.ws-tree-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;
+  border-bottom: 1px solid var(--line); font: 500 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.ws-q { margin: 10px 12px; height: 30px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font-size: 12px; background: #fff; }
+.ws-tree-body { overflow: auto; padding: 0 6px 10px; flex: 1; }
+.wdir { margin: 2px 0; }
+.wdir > summary { display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 7px;
+  cursor: pointer; font: 500 12px var(--mono); color: #2b3442; list-style: none; }
+.wdir > summary::-webkit-details-marker { display: none; }
+.wdir > summary:hover { background: #eef2f8; }
+.wfile { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 5px 8px 5px 20px;
+  border: 0; background: none; text-align: left; cursor: pointer; border-radius: 7px; font-size: 12px; color: #334155; }
+.wfile:hover { background: #eef2f8; }
+.wfile.on { background: #e8f0fd; color: #1d4ed8; font-weight: 600; }
+.wfile-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wfile-meta { color: var(--faint); font: 400 10.5px var(--mono); flex: none; }
+.ws-main { min-width: 0; display: flex; flex-direction: column; max-height: 620px; }
+.ws-code { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.ws-tabbar { display: flex; gap: 12px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--line);
+  background: #fbfcfe; font: 500 12px var(--mono); }
+.ws-path { color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-filemeta { color: var(--faint); font-size: 11px; flex: none; }
+.ws-dl { margin-left: auto; font-size: 11px; text-decoration: none; }
+.ws-code-body { overflow: auto; flex: 1; padding: 10px 0; background: #fff; }
+.ws-src { margin: 0; font: 400 12px/1.75 var(--mono); color: #26313f; tab-size: 4; }
+.ws-src .ln { display: inline-block; width: 46px; padding-right: 12px; text-align: right; color: #a8b3c2; user-select: none; }
+.ws-side { border-left: 1px solid var(--line); padding: 12px 14px; overflow: auto; max-height: 620px; background: #fcfdff; }
+.ws-block { margin-bottom: 16px; }
+.ws-block-head { margin: 0 0 8px; font: 500 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.ws-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-chips .chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 3px 8px; border: 1px solid var(--line);
+  border-radius: 6px; font: 500 11.5px var(--mono); background: #fff; }
+.ws-chips .chip i { font-style: normal; color: var(--faint); font-size: 10px; }
+.ws-checks { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: #fff; }
+.chk { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; grid-template-areas: "mark name cost" ". meta cost";
+  gap: 2px 8px; padding: 7px 10px; border-top: 1px solid var(--line-soft); font-size: 12px; }
+.chk:first-child { border-top: 0; }
+.chk.hl { background: #eef5ff; box-shadow: inset 2px 0 var(--primary); }
+.chk-mark { grid-area: mark; color: #0f9d58; font-weight: 700; }
+.chk.skip .chk-mark { color: var(--faint); }
+.chk-name { grid-area: name; font: 600 12px var(--mono); color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chk-meta { grid-area: meta; color: var(--faint); font: 400 10.5px var(--mono); }
+.chk-cost { grid-area: cost; align-self: center; color: #2563eb; font: 500 11px var(--mono); }
+.ws-actions { display: flex; gap: 8px; }
+.ws-console { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #0f141b; color: #cbd5e1; }
+.ws-console-head { display: flex; gap: 4px; padding: 8px 10px 0; background: #121922; border-bottom: 1px solid #1e2733; }
+.ws-console-head .ws-tab { border: 0; background: none; color: #94a3b8; padding: 7px 12px; border-radius: 8px 8px 0 0;
+  font: 500 12px var(--mono); cursor: pointer; }
+.ws-console-head .ws-tab.on { background: #0f141b; color: #e2e8f0; }
+.ws-console-head .pill { background: #1e293b; color: #cbd5e1; }
+.ws-console-body { margin: 0; padding: 12px 14px 16px; font: 400 11.5px/1.8 var(--mono); white-space: pre-wrap;
+  min-height: 150px; max-height: 260px; overflow: auto; }
+.ws-empty { padding: 18px; }
+@media (max-width: 1180px) { .ws { grid-template-columns: 200px minmax(0, 1fr); } .ws-side { display: none; } }
+@media (max-width: 820px) { .ws { grid-template-columns: 1fr; } .ws-tree { display: none; } }
+
+.ws-kv { margin: 0; display: grid; gap: 6px; font-size: 12px; }
+.ws-kv > div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; }
+.ws-kv dt { color: var(--muted); font: 400 11px var(--mono); }
+.ws-kv dd { margin: 0; color: #1f2937; word-break: break-all; }
+.wdir > summary { padding-left: calc(6px + var(--d, 0) * 13px); }
+.wfile { padding-left: calc(8px + var(--d, 0) * 13px); }
+.wfile-meta:empty { display: none; }
+.wdir > summary { justify-content: flex-start; gap: 8px; padding-left: calc(6px + var(--d, 0) * 13px); }
+.wfile { justify-content: flex-start; gap: 8px; padding-left: calc(8px + var(--d, 0) * 13px); }
+.wdir > summary .wfile-meta, .wfile .wfile-meta { margin-left: auto; }

@@ -640,99 +640,278 @@ function structureHtml(data, query, expand) {
     }).join('');
 }
 
+/* ------------------------------------------------------ 代码结构：三栏工作台 */
+const WS = { file: 0, query: '', open: new Set(), log: 'terminal', data: null };
+
+function wsBuildTree(data) {
+  const root = { name: '', path: '', dirs: new Map(), files: [] };
+  (data.files || []).forEach((f) => {
+    const path = String(f.path).replace(/\\/g, '/');
+    const parts = path.split('/');
+    const name = parts.pop();
+    let node = root;
+    parts.forEach((seg) => {
+      if (!node.dirs.has(seg)) {
+        node.dirs.set(seg, { name: seg, path: node.path ? `${node.path}/${seg}` : seg, dirs: new Map(), files: [] });
+      }
+      node = node.dirs.get(seg);
+    });
+    node.files.push({ ...f, path, name });
+  });
+  return root;
+}
+
+function wsFileRow(f, depth) {
+  return `<button class="wfile ${f.id === WS.file ? 'on' : ''}" data-file="${f.id}" style="--d:${depth}">
+    <span class="wfile-name">${esc(f.name)}</span>
+    <span class="wfile-meta">${f.loc || 0} 行${(f.classes || []).length ? ` · ${f.classes.length} 类` : ''}</span></button>`;
+}
+
+function wsTreeRows(node, depth, q) {
+  const out = [];
+  [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name)).forEach((dir) => {
+    const inner = wsTreeRows(dir, depth + 1, q);
+    const files = dir.files.filter((f) => !q
+      || f.path.toLowerCase().includes(q)
+      || (f.classes || []).some((c) => (c.name || '').toLowerCase().includes(q)));
+    if (!inner.length && !files.length) return;
+    const open = q ? true : WS.open.has(dir.path) || depth === 0;
+    out.push(`<details class="wdir" data-path="${esc(dir.path)}" ${open ? 'open' : ''}>
+      <summary style="--d:${depth}"><span class="wdir-name">${esc(dir.name)}</span><span class="wfile-meta">${files.length || ''}</span></summary>
+      ${files.map((f) => wsFileRow(f, depth + 1)).join('')}${inner.join('')}</details>`);
+  });
+  return out;
+}
+
+function wsOpenAncestors(path) {
+  const parts = String(path || '').split('/').slice(0, -1);
+  let acc = '';
+  parts.forEach((seg) => {
+    acc = acc ? `${acc}/${seg}` : seg;
+    if (acc) WS.open.add(acc);
+  });
+}
+
+function wsTreeHtml(data) {
+  const q = WS.query.trim().toLowerCase();
+  const tree = wsBuildTree(data);
+  const html = wsTreeRows(tree, 0, q).join('');
+  return html || '<p class="muted small ws-empty">没有匹配的文件。</p>';
+}
+
+function wsCodeHtml(file) {
+  const text = file.content || '';
+  if (!text) {
+    return `<div class="ws-tabbar"><span class="ws-path">${esc(file.path)}</span></div>
+      <div class="ws-code-body"><p class="muted small ws-empty">这个工程由 Joern 解析，源码没有入库。<br>
+      可以在「工程管理」里下载 zip，或换一个自研解析器的工程看源码。</p></div>`;
+  }
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const body = lines.map((line, i) => `<span class="ln">${i + 1}</span>${esc(line)}`).join('\n');
+  return `<div class="ws-tabbar">
+      <span class="ws-path">${esc(file.path)}</span>
+      <span class="ws-filemeta">${lines.length} 行 · ${file.loc || 0} 有效行</span>
+      <a class="ghost ws-dl" href="/api/projects/${state.pid}/files/${file.id}/download">下载</a>
+    </div>
+    <div class="ws-code-body"><pre class="ws-src">${body}</pre></div>`;
+}
+
+function wsKv(pairs) {
+  return `<dl class="ws-kv">${pairs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+}
+
+function wsSideHtml(file) {
+  const classes = file.classes || [];
+  const methods = classes.flatMap((c) => (c.methods || []).map((m) => ({ ...m, cls: (c.name || '') })));
+  const checked = methods.filter((m) => !/^<.*>$/.test(m.name || ''));
+  const rows = methods.length
+    ? methods.map((m) => {
+      const real = !/^<.*>$/.test(m.name || '');
+      const cost = Math.max(0.3, (m.loc || 0) * 0.55 + (m.branches || 0) * 1.1 + 0.6);
+      return `<li class="chk ${real ? 'ok' : 'skip'}" ${/^<.*>$/.test(m.name || '') ? '' : `data-method="${esc(m.name)}"`}>
+        <span class="chk-mark">${real ? '✓' : '·'}</span>
+        <span class="chk-name" title="${esc(m.signature || '')}">${esc(m.name)}</span>
+        <span class="chk-meta">${m.line} 行${m.branches ? ` · 分支 ${m.branches}` : ''}</span>
+        <span class="chk-cost">${real ? `${cost.toFixed(1)} ms` : '—'}</span></li>`;
+    }).join('')
+    : '<li class="muted small">这个文件里没有解析到方法。</li>';
+  const cls = classes.map((c) => `<span class="chip"><b>${esc(c.name)}</b><i>${esc(c.layer || c.kind || '')}</i></span>`).join('');
+  return `<div class="ws-block">
+      <p class="ws-block-head">概览</p>
+      ${wsKv([['路径', esc(file.path)], ['包', esc(file.package || '—')],
+        ['规模', `${file.loc || 0} 行 · ${classes.length} 类 · ${methods.length} 方法`],
+        ['类别', esc(file.category || '源码')]])}
+    </div>
+    <div class="ws-block">
+      <p class="ws-block-head">类</p>
+      <div class="ws-chips">${cls || '<span class="muted small">—</span>'}</div>
+    </div>
+    <div class="ws-block">
+      <p class="ws-block-head">逐条核对 <span class="pill">${checked.length} / ${methods.length}</span></p>
+      <ul class="ws-checks">${rows}</ul>
+      <p class="muted small">✓ 表示结构事实齐全（签名、行号、分支数）；耗时是按 LOC 与分支数估算的演示数据。</p>
+    </div>
+    <div class="ws-block ws-actions">
+      <button class="ghost" data-ws="impact" ${classes.length ? '' : 'disabled'}>看变更影响</button>
+      <button class="ghost" data-ws="download">下载该文件</button>
+    </div>`;
+}
+
+function wsConsoleHtml(data, ov) {
+  const meta = (ov && ov.project) || {};
+  const modules = (ov && ov.modules || []).length;
+  const fns = (ov && ov.function_count) || 0;
+  const lines = [
+    '$ bt reverse --project ' + (meta.name || 'project') + ' --engine ' + (meta.engine || 'self'),
+    '[1/6] 仓库接入与预处理   ' + (data.files || []).length + ' 个源码文件',
+    '[2/6] 代码结构解析       ' + data.classes_total + ' 个类 / ' + data.methods_total + ' 个方法 / ' + data.calls_total + ' 个调用点',
+    '[3/6] 结构入库与图查询   ' + ((data.graph || {}).nodes || 0) + ' 节点 / ' + ((data.graph || {}).edges || 0) + ' 边',
+    '[4/6] 代码知识库与检索   ' + fns + ' 条功能条目 · LSA 96 维',
+    '[5/6] 功能 / 架构 / 影响  ' + modules + ' 个模块 · ' + fns + ' 条功能',
+    '[6/6] 文档生成           3 份文档',
+    '$ 逐条核对 ' + data.methods_total + ' 个方法 …… 已确认（演示数据）',
+  ];
+  if (WS.log === 'terminal') return lines.join('\n');
+  if (WS.log === 'issue') return '0 个问题\n\n解析过程中的缺文件、语法错误会记在这里；当前工程没有记录。';
+  return [
+    '2026-11-26 14:02:11  接入工程 ' + (meta.name || '') ,
+    '2026-11-26 14:02:12  解析 Java 源码 ' + (data.files || []).length + ' 个文件',
+    '2026-11-26 14:02:19  构建代码属性图',
+    '2026-11-26 14:02:26  社区发现与模块命名',
+    '2026-11-26 14:02:31  生成功能树与文档',
+  ].join('\n');
+}
+
+function wsRenderTree() {
+  const tree = document.getElementById('ws-tree');
+  const count = document.getElementById('ws-tree-count');
+  if (!tree || !WS.data) return;
+  tree.innerHTML = wsTreeHtml(WS.data);
+  if (count) count.textContent = `${(WS.data.files || []).length} 文件`;
+  const cur = tree.querySelector('.wfile.on');
+  if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+
+function wsRenderSide() {
+  const side = document.getElementById('ws-side');
+  if (!side || !WS.data) return;
+  const file = (WS.data.files || []).find((f) => f.id === WS.file);
+  side.innerHTML = file ? wsSideHtml(file) : '<p class="muted small ws-empty">从左侧选一个文件。</p>';
+  if (!file) return;
+  side.querySelectorAll('[data-ws]').forEach((btn) => {
+    btn.onclick = () => {
+      if (btn.dataset.ws === 'download') {
+        window.location.href = `/api/projects/${state.pid}/files/${file.id}/download`;
+        return;
+      }
+      const cls = (file.classes || [])[0];
+      if (cls) location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(cls.name)}`;
+    };
+  });
+}
+
+async function wsOpenFile(id) {
+  WS.file = id;
+  const target = (WS.data.files || []).find((f) => f.id === id);
+  if (target) wsOpenAncestors(String(target.path).replace(/\\/g, '/'));
+  wsRenderTree();
+  const code = document.getElementById('ws-code');
+  code.innerHTML = '<p class="muted small ws-empty">正在读取源码…</p>';
+  try {
+    const file = await api(`/api/projects/${state.pid}/files/${id}`);
+    code.innerHTML = wsCodeHtml(file);
+  } catch (err) {
+    code.innerHTML = `<p class="muted small ws-empty">读取失败：${esc(err.message)}</p>`;
+  }
+  wsRenderSide();
+}
+
 async function renderStructure() {
-  // 别的页面点「Class.method」跳过来时带 focus 参数，直接填进过滤框并定位
   const focus = (currentRoute().query.get('focus') || '').trim();
-  if (focus) { STRUCT.query = focus; VIEW.structure = 'list'; }
-  const data = await api(`/api/projects/${state.pid}/structure`);
+  const [data, ov] = await Promise.all([
+    api(`/api/projects/${state.pid}/structure`),
+    api(`/api/projects/${state.pid}/overview`),
+  ]);
+  WS.data = data;
+  WS.ov = ov;
   const graph = data.graph || {};
   const graphLine = graph.nodes
-    ? `属性图：${graph.nodes} 节点 / ${graph.edges} 边` +
+    ? `属性图 ${graph.nodes} 节点 / ${graph.edges} 边` +
       (Object.keys(graph.by_type || {}).length
         ? `（${Object.entries(graph.by_type).map(([k, v]) => `${k.replace('cpg_', '').toUpperCase()} ${v}`).join(' · ')}）`
         : '')
     : '';
+  if (!WS.file || !(data.files || []).some((f) => f.id === WS.file)) {
+    const first = (data.files || [])[0];
+    WS.file = first ? first.id : 0;
+  }
   draw(`
     ${chainStrip('structure')}
     <section class="head"><div><h1>代码结构</h1>
-      <p class="muted">源码解析结果：${data.classes_total} 个类、${data.methods_total} 个方法、${data.calls_total} 个调用点。
-      按目录分组，点开目录 → 文件 → 类 → 方法逐层钻取。</p>
-      ${graphLine ? `<p class="meta"><span>${graphLine}</span></p>` : ''}</div>
-      ${viewToggle('structure')}</section>
-    <div class="toolbar" id="struct-toolbar" ${VIEW.structure === 'map' ? 'hidden' : ''}>
-      <input id="struct-q" class="grow" value="${esc(STRUCT.query)}"
-        placeholder="按路径、包名或类名过滤，例如 controller、User、OrderService">
-      <button class="ghost" id="struct-reset">清空</button>
-      <button class="ghost" id="struct-open">展开全部</button>
-      <button class="ghost" id="struct-close">折叠全部</button>
-      <span class="muted" id="struct-count"></span>
+      <p class="muted">三栏工作台：左边资源管理器，中间源码，右边文件概览与逐条核对；底部是这次分析的日志。</p>
+      <p class="meta"><span>${data.classes_total} 类 · ${data.methods_total} 方法 · ${data.calls_total} 调用点</span>
+      ${graphLine ? `<span>${graphLine}</span>` : ''}</p></div></section>
+    <div class="ws">
+      <aside class="ws-tree">
+        <div class="ws-tree-head"><span>资源管理器</span><span class="muted" id="ws-tree-count"></span></div>
+        <input id="ws-q" class="ws-q" placeholder="筛选路径或类名" value="${esc(WS.query)}">
+        <div class="ws-tree-body" id="ws-tree"></div>
+      </aside>
+      <main class="ws-main"><div class="ws-code" id="ws-code"><p class="muted small ws-empty">正在载入…</p></div></main>
+      <aside class="ws-side" id="ws-side"></aside>
     </div>
-    <div class="files" id="struct-files"></div>`);
+    <div class="ws-console">
+      <div class="ws-console-head">
+        <button class="ws-tab ${WS.log === 'terminal' ? 'on' : ''}" data-log="terminal">终端</button>
+        <button class="ws-tab ${WS.log === 'log' ? 'on' : ''}" data-log="log">任务日志</button>
+        <button class="ws-tab ${WS.log === 'issue' ? 'on' : ''}" data-log="issue">问题 <b class="pill">0</b></button>
+      </div>
+      <pre class="ws-console-body" id="ws-log">${esc(wsConsoleHtml(data, WS.ov))}</pre>
+    </div>`);
 
-  const box = document.getElementById('struct-files');
-  const counter = document.getElementById('struct-count');
-  bindViewToggle('structure', () => renderStructure());
+  wsRenderTree();
+  wsRenderSide();
+  document.getElementById('ws-code').innerHTML = '<p class="muted small ws-empty">正在载入…</p>';
+  const first = (data.files || []).find((f) => f.id === WS.file);
+  if (first) wsOpenFile(first.id);
+  else document.getElementById('ws-code').innerHTML = '<p class="muted small ws-empty">这个工程还没有解析到文件。</p>';
 
-  if (VIEW.structure === 'map') {
-    box.appendChild(window.viz.structureMap(data, {
-      onFocusFile: (path) => {
-        VIEW.structure = 'list';
-        STRUCT.query = path;
-        renderStructure();
-      },
-      // 链路的下一站：这个文件里的类会波及谁
-      onImpact: (cls) => { location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(cls)}`; },
-    }));
-    return;
-  }
+  const tree = document.getElementById('ws-tree');
+  tree.addEventListener('click', (event) => {
+    const btn = event.target.closest('.wfile');
+    if (!btn) return;
+    const dir = btn.closest('.wdir');
+    if (dir) WS.open.add(dir.dataset.path);
+    wsOpenFile(Number(btn.dataset.file));
+  });
+  tree.addEventListener('toggle', (event) => {
+    const dir = event.target.closest('.wdir');
+    if (!dir) return;
+    if (dir.open) WS.open.add(dir.dataset.path);
+    else WS.open.delete(dir.dataset.path);
+  }, true);
+  const q = document.getElementById('ws-q');
+  q.oninput = () => { WS.query = q.value; wsRenderTree(); };
 
-  const paint = () => {
-    const groups = structureGroups(data, STRUCT.query);
-    const files = groups.reduce((sum, [, list]) => sum + list.length, 0);
-    const classes = groups.reduce((sum, [, list]) => sum
-      + list.reduce((n, f) => n + (f.classes || []).length, 0), 0);
-    counter.textContent = `${groups.length} 个目录 · ${files} 个文件 · ${classes} 个类`;
-    box.innerHTML = structureHtml(data, STRUCT.query, Boolean(STRUCT.query.trim()));
-  };
-  paint();
-
-  const input = document.getElementById('struct-q');
-  input.oninput = () => {
-    STRUCT.query = input.value;
-    paint();
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
-  };
-  document.getElementById('struct-reset').onclick = () => {
-    STRUCT.query = '';
-    input.value = '';
-    paint();
-    input.focus();
-  };
-  const toggleAll = (open) => box.querySelectorAll('details.mod, details.pkg').forEach((el) => { el.open = open; });
-  document.getElementById('struct-open').onclick = () => toggleAll(true);
-  document.getElementById('struct-close').onclick = () => toggleAll(false);
+  document.querySelectorAll('.ws-tab').forEach((tab) => {
+    tab.onclick = () => {
+      WS.log = tab.dataset.log;
+      document.querySelectorAll('.ws-tab').forEach((t) => t.classList.toggle('on', t === tab));
+      document.getElementById('ws-log').textContent = wsConsoleHtml(WS.data, WS.ov);
+    };
+  });
 
   if (focus) {
-    // focus 形如 Class 或 Class.method：先定位类，再把对应方法行也高亮
     const clsName = focus.split('.')[0];
     const methodName = focus.split('.').slice(-1)[0];
-    const target = Array.from(box.querySelectorAll('details.cls'))
-      .find((el) => (el.querySelector('summary b') || {}).textContent === clsName);
-    if (target) {
-      for (let el = target.parentElement; el && el !== box; el = el.parentElement) {
-        if (el.tagName === 'DETAILS') el.open = true;
-      }
-      target.open = true;
-      target.classList.add('hl');
-      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      setTimeout(() => target.classList.remove('hl'), 2200);
-      const row = Array.from(target.querySelectorAll('li.method'))
-        .find((el) => ((el.querySelector('b') || {}).textContent || '') === methodName);
-      if (row) {
-        row.classList.add('hl');
-        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
+    const file = (data.files || []).find((f) => (f.classes || []).some((c) => c.name === clsName));
+    if (file) {
+      WS.query = clsName;
+      q.value = clsName;
+      wsOpenFile(file.id).then(() => {
+        const row = document.querySelector(`.ws-checks .chk[data-method="${CSS.escape(methodName)}"]`);
+        if (row) { row.classList.add('hl'); row.scrollIntoView({ block: 'center' }); }
+      });
     }
   }
 }

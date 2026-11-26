@@ -120,6 +120,24 @@ def _source_text(pid, path, content):
         return ""
 
 
+@router.get("/{pid}/files/{file_id}")
+def project_file(pid: int, file_id: int):
+    """单个文件的元数据与源码：工作台左树点文件时用。"""
+    row = db.query_one(
+        "SELECT id, path, package, loc, category, content FROM files WHERE project_id=? AND id=?",
+        (pid, file_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return {
+        "id": row["id"],
+        "path": row["path"],
+        "package": row["package"],
+        "loc": row["loc"],
+        "category": row["category"],
+        "content": _source_text(pid, row["path"], row["content"]),
+    }
+
+
 @router.get("/{pid}/files/{file_id}/download")
 def download_file(pid: int, file_id: int):
     row = db.query_one("SELECT path, content FROM files WHERE project_id=? AND id=?", (pid, file_id))
