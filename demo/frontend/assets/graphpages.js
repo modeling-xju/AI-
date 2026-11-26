@@ -113,6 +113,7 @@
         nodes: vis, edges: visEdges, width: W, height, vertical: true,
         title: `${title} · ${vis.length} 节点`,
         legend: [],
+        inspector: insp,
         onPick: (nd) => {
           const has = children.has(nd.id);
           const base = onPick(byId.get(nd.id) || nd) || '';
@@ -137,7 +138,7 @@
       }
       paintRail();
       const first = vis.find((n) => n.parent == null);
-      if (first && onPick) setInsp(onPick(byId.get(first.id)) || '');
+      if (first && canvas.select) canvas.select(first.id);
     }
 
     railEl.addEventListener('click', (event) => {
