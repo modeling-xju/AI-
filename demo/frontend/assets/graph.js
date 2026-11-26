@@ -154,10 +154,60 @@
     }
   }
 
+  // 自上而下分层：level = 行，行内按顺序水平铺开，行标题写在左侧
+  function layoutTree(nodes, W, H) {
+    const rows = new Map();
+    nodes.forEach((nd) => {
+      const lv = nd.level || 0;
+      if (!rows.has(lv)) rows.set(lv, []);
+      rows.get(lv).push(nd);
+    });
+    const keys = [...rows.keys()].sort((a, b) => a - b);
+    const top = 42;
+    const bottom = 22;
+    const rowGap = keys.length > 1 ? Math.min(220, (H - top - bottom) / (keys.length - 1)) : 0;
+    const MIN_W = 64;
+    const MIN_GAP = 10;
+    const perRow = Math.max(1, Math.floor((W - 40) / 132));
+    const subGap = 38;
+
+    keys.forEach((lv, ri) => {
+      const list = rows.get(lv).sort((a, b) => (a.order || 0) - (b.order || 0));
+      // 一行放不下就折成若干子行，避免节点被画到画布外
+      const chunks = [];
+      for (let i = 0; i < list.length; i += perRow) chunks.push(list.slice(i, i + perRow));
+      chunks.forEach((chunk, ci) => {
+        chunk.forEach((nd) => {
+          nd.w = Math.max(MIN_W, Math.min(196, textW(nd.label) + 24));
+          nd.h = 30;
+        });
+        let total = chunk.reduce((n, nd) => n + nd.w, 0);
+        // 一行总宽超过画布时等比收窄，避免节点被裁到画布外
+        if (total + MIN_GAP * (chunk.length - 1) > W - 60) {
+          const fit = Math.max(56, Math.floor((W - 60 - MIN_GAP * (chunk.length - 1)) / chunk.length));
+          chunk.forEach((nd) => { nd.w = Math.min(nd.w, fit); });
+          total = chunk.reduce((n, nd) => n + nd.w, 0);
+        }
+        const gap = chunk.length > 1
+          ? Math.max(MIN_GAP, Math.min(26, (W - 60 - total) / (chunk.length - 1)))
+          : 0;
+        const span = total + gap * Math.max(0, chunk.length - 1);
+        let x = Math.max(30, (W - span) / 2);
+        const y = top + rowGap * ri + ci * subGap;
+        chunk.forEach((nd) => {
+          nd.x = x + nd.w / 2;
+          nd.y = y;
+          x += nd.w + gap;
+        });
+      });
+    });
+  }
+
   function forceGraph(opts) {
     const {
       nodes = [], edges = [], width = 900, height = 560, title = '',
-      onPick = null, inspector = null, legend = [], emptyNote = '',
+      onPick = null, onDblClick = null, inspector = null, legend = [], emptyNote = '',
+      vertical = false,
     } = opts || {};
     const box = document.createElement('div');
     box.className = 'fg';
@@ -168,16 +218,19 @@
     svg.setAttribute('class', 'fg-svg');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    // 分层列标题
-    const cols = new Map();
+    // 行标题：按 level 取第一行的 levelLabel
+    const rowLabels = new Map();
     nodes.forEach((nd) => {
-      if (typeof nd.anchor !== 'number') return;
-      if (!cols.has(nd.anchor)) cols.set(nd.anchor, nd.colLabel || nd.layer || '');
+      const lv = nd.level || 0;
+      if (!rowLabels.has(lv) && (nd.levelLabel || nd.layer)) rowLabels.set(lv, nd.levelLabel || nd.layer);
     });
-    const colText = [...cols.entries()].map(([anchor, label]) => {
-      const x = Math.max(56, Math.min(width - 56, width * anchor));
-      return `<text class="fg-col" x="${x}" y="18" text-anchor="middle">${esc(label)}</text>`;
-    }).join('');
+    const top = 46;
+    const bottom = 26;
+    const levels = [...new Set(nodes.map((nd) => nd.level || 0))].sort((a, b) => a - b);
+    const rowGap = vertical && levels.length > 1 ? (height - top - bottom) / (levels.length - 1) : 0;
+    const colText = vertical
+      ? levels.map((lv, i) => `<text class="fg-col" x="14" y="${top + rowGap * i + 4}">${esc(rowLabels.get(lv) || '')}</text>`).join('')
+      : '';
     svg.innerHTML = `
       <defs>
         <marker id="fg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -200,7 +253,8 @@
     if (emptyNote) box.insertAdjacentHTML('beforeend', `<p class="muted small fg-note">${esc(emptyNote)}</p>`);
 
     if (!nodes.length) return box;
-    layout(nodes, edges, width, height, nodes.length > 90 ? 120 : 200);
+    if (vertical) layoutTree(nodes, width, height);
+    else layout(nodes, edges, width, height, nodes.length > 90 ? 120 : 200);
 
     const cam = svg.querySelector('.fg-cam');
     const gEdges = svg.querySelector('.fg-edges');
@@ -255,37 +309,48 @@
     drawEdges();
     drawNodes();
 
-    // 点击节点 → 右侧检查器
+    // 点击节点 → 右侧检查器；双击 → 展开/折叠子层
     let picked = null;
-    gNodes.addEventListener('click', (event) => {
-      const g = event.target.closest('.fg-node');
-      if (!g) return;
-      picked = byId.get(g.getAttribute('data-id'));
+    function select(node) {
+      picked = node;
       gNodes.querySelectorAll('.fg-node rect:first-child').forEach((r) => r.setAttribute('stroke-width', '1.6'));
-      const rect = g.querySelector('rect');
+      const g = gNodes.querySelector(`.fg-node[data-id="${CSS.escape(node.id)}"]`);
+      const rect = g && g.querySelector('rect');
       if (rect) rect.setAttribute('stroke-width', '2.6');
-      if (inspector && onPick) inspector.innerHTML = onPick(picked) || '';
-    });
+      if (inspector && onPick) inspector.innerHTML = onPick(node) || '';
+    }
 
-    // 拖拽节点：拖动后重画边
+    // 拖拽节点：位移超过 4px 才算拖动，否则按点击处理
     let drag = null;
     gNodes.addEventListener('pointerdown', (event) => {
       const g = event.target.closest('.fg-node');
       if (!g) return;
-      drag = { node: byId.get(g.getAttribute('data-id')), moved: false };
-      svg.setPointerCapture(event.pointerId);
+      drag = {
+        node: byId.get(g.getAttribute('data-id')),
+        sx: event.clientX, sy: event.clientY, moved: false,
+      };
     });
     svg.addEventListener('pointermove', (event) => {
       if (!drag) return;
+      if (!drag.moved && Math.abs(event.clientX - drag.sx) + Math.abs(event.clientY - drag.sy) < 4) return;
+      drag.moved = true;
       const pt = svgPoint(svg, event);
       drag.node.x = pt.x;
       drag.node.y = pt.y;
       const g = gNodes.querySelector(`.fg-node[data-id="${CSS.escape(drag.node.id)}"]`);
       if (g) g.setAttribute('transform', `translate(${drag.node.x - drag.node.w / 2},${drag.node.y - drag.node.h / 2})`);
-      drag.moved = true;
       drawEdges();
     });
-    svg.addEventListener('pointerup', () => { drag = null; });
+    svg.addEventListener('pointerup', () => {
+      if (drag && !drag.moved) select(drag.node);
+      drag = null;
+    });
+    gNodes.addEventListener('dblclick', (event) => {
+      const g = event.target.closest('.fg-node');
+      if (!g || !onDblClick) return;
+      const node = byId.get(g.getAttribute('data-id'));
+      if (node) onDblClick(node);
+    });
 
     // 滚轮缩放 + 空白拖拽平移
     let scale = 1;
