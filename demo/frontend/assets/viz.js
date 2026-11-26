@@ -678,5 +678,7 @@
     wrap.appendChild(inspector);
     return wrap;
   }
-  window.viz = { structureMap, functionMap, archGraph, impactGraph, frame, emptyInsp };
+  window.viz = Object.assign(
+    { structureMap, functionMap, archGraph, impactGraph, frame, emptyInsp },
+    window.vizPages || {});
 })();

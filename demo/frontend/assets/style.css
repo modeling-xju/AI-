@@ -1045,3 +1045,21 @@ details.hl > summary { border-radius: 3px; }
 
 .map-shell .am-cell b { white-space: nowrap; font-size: 13px; }
 .map-shell .am-cell b .gmark { vertical-align: 0; }
+
+/* ---------------------------------------------------------------- 力导向图 */
+.fg { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card); overflow: hidden; }
+.fg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+.fg-title { font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.fg-count { font: 400 10.5px/1 var(--mono); color: var(--faint); }
+.fg-view { position: relative; background: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0) 0 0 / 22px 22px; }
+.fg-svg { display: block; width: 100%; height: auto; touch-action: none; }
+.fg-edge { pointer-events: stroke; }
+.fg-node { cursor: pointer; }
+.fg-node text { pointer-events: none; }
+.fg-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; border-top: 1px solid var(--line-soft); }
+.fg-legend .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.fg-legend .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--g, #64748b); display: inline-block; }
+.fg-note { padding: 8px 12px; }
+.fg .insp-hint { padding: 12px; color: var(--muted); font-size: 12px; }
+
+.fg-col { font: 500 10px var(--mono); fill: var(--muted); letter-spacing: .12em; }
