@@ -297,11 +297,10 @@
         const b = byId.get(e.target);
         if (!a || !b) return '';
         const kind = e.kind || 'contains';
-        const color = EDGE_COLOR[kind] || EDGE_COLOR.contains;
         const marker = kind === 'dynamic' ? 'fg-arrow-dyn' : 'fg-arrow';
         const dash = kind === 'dynamic' ? ' stroke-dasharray="5 3"' : '';
         const op = kind === 'contains' ? '0.9' : '0.75';
-        return `<path class="fg-edge ${kind}" d="${edgePath(a, b)}" fill="none" stroke="${color}" stroke-width="${kind === 'dynamic' ? 1.4 : 1.2}" opacity="${op}"${dash} marker-end="url(#${marker})"><title>${esc(a.label)} → ${esc(b.label)}${e.label ? '：' + esc(e.label) : ''}</title></path>`;
+        return `<path class="fg-edge ${kind}" d="${edgePath(a, b)}" fill="none" stroke-width="${kind === 'dynamic' ? 1.4 : 1.2}" opacity="${op}"${dash} marker-end="url(#${marker})"><title>${esc(a.label)} → ${esc(b.label)}${e.label ? '：' + esc(e.label) : ''}</title></path>`;
       }).join('');
     }
 
@@ -313,12 +312,12 @@
         const label = clip(nd.label, nd.w - 16);
         const nameY = nd.meta ? 17 : nd.h / 2 + 4;
         const meta = nd.meta
-          ? `<text class="fg-meta" x="10" y="32" font-size="9.5" fill="#7e8f86">${esc(clip(nd.meta, nd.w - 16))}</text>`
+          ? `<text class="fg-meta" x="10" y="32" font-size="9.5">${esc(clip(nd.meta, nd.w - 16))}</text>`
           : '';
         return `<g class="fg-node" data-id="${esc(nd.id)}" transform="translate(${x},${y})">
-          <rect width="${nd.w}" height="${nd.h}" rx="6" fill="#0e1613" stroke="#31503f" stroke-width="1"></rect>
+          <rect class="fg-box" width="${nd.w}" height="${nd.h}" rx="6"></rect>
           <rect width="3" height="${nd.h}" rx="1.5" fill="${color}"></rect>
-          <text x="10" y="${nameY}" font-size="11.5" fill="#d7e5dc">${esc(label)}</text>
+          <text class="fg-name" x="10" y="${nameY}" font-size="11.5">${esc(label)}</text>
           ${meta}
           <title>${esc(nd.label)}${nd.meta ? '\n' + esc(nd.meta) : ''}</title>
         </g>`;
@@ -336,11 +335,13 @@
     let picked = null;
     function select(node) {
       picked = node;
-      gNodes.querySelectorAll('.fg-node rect:first-child').forEach((r) => { r.setAttribute('stroke', '#31503f'); r.setAttribute('stroke-width', '1'); });
+      gNodes.querySelectorAll('.fg-node.sel').forEach((el) => el.classList.remove('sel'));
       const g = gNodes.querySelector(`.fg-node[data-id="${CSS.escape(node.id)}"]`);
-      const rect = g && g.querySelector('rect');
-      if (rect) { rect.setAttribute('stroke', '#9ee9ca'); rect.setAttribute('stroke-width', '1.8'); }
-      if (inspector && onPick) inspector.innerHTML = onPick(node) || '';
+      if (g) g.classList.add('sel');
+      if (inspector && onPick) {
+        inspector.innerHTML = onPick(node) || '';
+        inspector.classList.add('has');
+      }
     }
 
     // 拖拽节点：位移超过 4px 才算拖动，否则按点击处理

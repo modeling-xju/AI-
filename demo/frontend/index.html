@@ -8,6 +8,8 @@
 <script>
   // 先定主题再渲染，避免浅色闪一下
   (function () {
+    var forced = new URLSearchParams(location.search).get('theme');
+    if (forced === 'dark' || forced === 'light') localStorage.setItem('theme', forced);
     var saved = localStorage.getItem('theme');
     var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
