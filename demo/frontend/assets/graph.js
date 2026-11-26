@@ -154,7 +154,7 @@
     }
   }
 
-  // 自上而下分层：level = 行，行内按顺序水平铺开，行标题写在左侧
+  // 自上而下分层：level = 行，每层一行到底（放不下就横向滚动，不折行）
   function layoutTree(nodes, W, H) {
     const rows = new Map();
     nodes.forEach((nd) => {
@@ -164,43 +164,37 @@
     });
     const keys = [...rows.keys()].sort((a, b) => a - b);
     const top = 42;
-    const bottom = 22;
-    const rowGap = keys.length > 1 ? Math.min(220, (H - top - bottom) / (keys.length - 1)) : 0;
-    const MIN_W = 64;
-    const MIN_GAP = 10;
-    const perRow = Math.max(1, Math.floor((W - 40) / 132));
-    const subGap = 38;
+    const bottom = 26;
+    const gap = 14;
+    const rowGap = keys.length > 1 ? Math.min(230, (H - top - bottom) / (keys.length - 1)) : 0;
+
+    keys.forEach((lv) => {
+      rows.get(lv).forEach((nd) => {
+        const tw = Math.max(textW(nd.label), nd.meta ? textW(nd.meta) * 0.82 : 0);
+        nd.w = Math.max(104, Math.min(238, tw + 28));
+        nd.h = nd.meta ? 42 : 30;
+      });
+    });
+
+    let needW = W;
+    keys.forEach((lv) => {
+      const list = rows.get(lv);
+      const total = list.reduce((n, nd) => n + nd.w, 0) + gap * Math.max(0, list.length - 1);
+      needW = Math.max(needW, total + 60);
+    });
 
     keys.forEach((lv, ri) => {
       const list = rows.get(lv).sort((a, b) => (a.order || 0) - (b.order || 0));
-      // 一行放不下就折成若干子行，避免节点被画到画布外
-      const chunks = [];
-      for (let i = 0; i < list.length; i += perRow) chunks.push(list.slice(i, i + perRow));
-      chunks.forEach((chunk, ci) => {
-        chunk.forEach((nd) => {
-          nd.w = Math.max(MIN_W, Math.min(196, textW(nd.label) + 24));
-          nd.h = 30;
-        });
-        let total = chunk.reduce((n, nd) => n + nd.w, 0);
-        // 一行总宽超过画布时等比收窄，避免节点被裁到画布外
-        if (total + MIN_GAP * (chunk.length - 1) > W - 60) {
-          const fit = Math.max(56, Math.floor((W - 60 - MIN_GAP * (chunk.length - 1)) / chunk.length));
-          chunk.forEach((nd) => { nd.w = Math.min(nd.w, fit); });
-          total = chunk.reduce((n, nd) => n + nd.w, 0);
-        }
-        const gap = chunk.length > 1
-          ? Math.max(MIN_GAP, Math.min(26, (W - 60 - total) / (chunk.length - 1)))
-          : 0;
-        const span = total + gap * Math.max(0, chunk.length - 1);
-        let x = Math.max(30, (W - span) / 2);
-        const y = top + rowGap * ri + ci * subGap;
-        chunk.forEach((nd) => {
-          nd.x = x + nd.w / 2;
-          nd.y = y;
-          x += nd.w + gap;
-        });
+      const total = list.reduce((n, nd) => n + nd.w, 0) + gap * Math.max(0, list.length - 1);
+      let x = needW > W + 1 ? 54 : Math.max(30, (needW - total) / 2);
+      const y = top + rowGap * ri;
+      list.forEach((nd) => {
+        nd.x = x + nd.w / 2;
+        nd.y = y;
+        x += nd.w + gap;
       });
     });
+    return Math.round(needW);
   }
 
   function forceGraph(opts) {
@@ -253,8 +247,19 @@
     if (emptyNote) box.insertAdjacentHTML('beforeend', `<p class="muted small fg-note">${esc(emptyNote)}</p>`);
 
     if (!nodes.length) return box;
-    if (vertical) layoutTree(nodes, width, height);
-    else layout(nodes, edges, width, height, nodes.length > 90 ? 120 : 200);
+    if (vertical) {
+      const needW = layoutTree(nodes, width, height);
+      if (needW > width) {
+        svg.setAttribute('viewBox', `0 0 ${needW} ${height}`);
+        svg.setAttribute('width', needW);
+        svg.setAttribute('height', height);
+        svg.style.width = `${needW}px`;
+        svg.style.height = `${height}px`;
+        requestAnimationFrame(() => { view.scrollLeft = 0; });
+      }
+    } else {
+      layout(nodes, edges, width, height, nodes.length > 90 ? 120 : 200);
+    }
 
     const cam = svg.querySelector('.fg-cam');
     const gEdges = svg.querySelector('.fg-edges');
@@ -297,10 +302,15 @@
         const x = nd.x - nd.w / 2;
         const y = nd.y - nd.h / 2;
         const label = clip(nd.label, nd.w - 16);
+        const nameY = nd.meta ? 17 : nd.h / 2 + 4;
+        const meta = nd.meta
+          ? `<text class="fg-meta" x="10" y="32" font-size="9.5" fill="#66758a">${esc(clip(nd.meta, nd.w - 16))}</text>`
+          : '';
         return `<g class="fg-node" data-id="${esc(nd.id)}" transform="translate(${x},${y})">
           <rect width="${nd.w}" height="${nd.h}" rx="7" fill="#ffffff" stroke="${color}" stroke-width="1.6"></rect>
           <rect width="3" height="${nd.h}" rx="1.5" fill="${color}"></rect>
-          <text x="10" y="${nd.h / 2 + 4}" font-size="11.5" fill="#172033">${esc(label)}</text>
+          <text x="10" y="${nameY}" font-size="11.5" fill="#172033">${esc(label)}</text>
+          ${meta}
           <title>${esc(nd.label)}${nd.meta ? '\n' + esc(nd.meta) : ''}</title>
         </g>`;
       }).join('');

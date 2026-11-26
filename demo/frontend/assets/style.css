@@ -1051,7 +1051,9 @@ details.hl > summary { border-radius: 3px; }
 .fg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
 .fg-title { font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .fg-count { font: 400 10.5px/1 var(--mono); color: var(--faint); }
-.fg-view { position: relative; background: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0) 0 0 / 22px 22px; }
+.fg-view { position: relative; overflow: auto; background: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0) 0 0 / 22px 22px; }
+.fg-svg[width] { max-width: none; }
+.fg-node .fg-meta { font-family: var(--mono); letter-spacing: .01em; }
 .fg-svg { display: block; width: 100%; height: auto; touch-action: none; }
 .fg-edge { pointer-events: stroke; }
 .fg-node { cursor: pointer; }
