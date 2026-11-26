@@ -137,8 +137,7 @@
         });
       }
       paintRail();
-      const first = vis.find((n) => n.parent == null);
-      if (first && canvas.select) canvas.select(first.id);
+      setInsp('');
     }
 
     railEl.addEventListener('click', (event) => {

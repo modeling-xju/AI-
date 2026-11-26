@@ -920,27 +920,6 @@ async function renderStructure() {
   }
 }
 
-/* ------------------------------------------------------------------ 视图切换 */
-const VIEW = { structure: 'map', functions: 'map', architecture: 'map', impact: 'map' };
-
-function viewToggle(key) {
-  return `<div class="seg" data-toggle="${key}">
-    <button data-mode="map" class="${VIEW[key] === 'map' ? 'on' : ''}">图谱</button>
-    <button data-mode="list" class="${VIEW[key] === 'list' ? 'on' : ''}">列表</button>
-  </div>`;
-}
-
-function bindViewToggle(key, rerender) {
-  const box = document.querySelector(`[data-toggle="${key}"]`);
-  if (!box) return;
-  box.querySelectorAll('[data-mode]').forEach((button) => {
-    button.onclick = () => {
-      VIEW[key] = button.dataset.mode;
-      rerender();
-    };
-  });
-}
-
 /**
  * 结构 → 功能 → 架构 → 影响 是一条链路：同一条路径上前后可来回跳，
  * 跳的时候把 pid 带上，工程不丢。
@@ -1006,20 +985,11 @@ async function renderFunctions() {
     ${chainStrip('functions')}
     <section class="head"><div><h1>功能需求恢复</h1>
       <p class="muted">一级为模块功能，二级为可核对到方法的原子功能；每条都标了实现位置。</p></div>
-      <div class="row">${viewToggle('functions')}<span class="badge ok">${data.leaf_count} 条</span></div></section>
-    <div class="toolbar" ${VIEW.functions === 'map' ? 'hidden' : ''}>
-      <input id="fn-q" class="grow" value="${esc(FUNCS.query)}"
-        placeholder="按功能名、说明或证据方法过滤，例如 登录、订单、UserController">
-      <button class="ghost" id="fn-reset">清空</button>
-      <button class="ghost" id="fn-open">展开全部</button>
-      <button class="ghost" id="fn-close">折叠全部</button>
-      <span class="muted" id="fn-count"></span>
-    </div>
+      <div class="row"><span class="badge ok">${data.leaf_count} 条</span></div></section>
     <div id="fn-list"></div>`);
 
   const box = document.getElementById('fn-list');
-  bindViewToggle('functions', () => renderFunctions());
-  if (VIEW.functions === 'map') {
+  {
     box.appendChild(window.viz.functionMap(data, {
       onFocus: (evidence) => {
         const target = String(evidence || '').split(/[（(]/)[0].trim();
@@ -1041,35 +1011,6 @@ async function renderFunctions() {
     return;
   }
 
-  const counter = document.getElementById('fn-count');
-  const paint = () => {
-    const needle = FUNCS.query.trim().toLowerCase();
-    const panels = data.tree.map((root) => functionPanel(root, needle)).filter(Boolean).join('');
-    const shown = needle
-      ? data.tree.reduce((sum, root) => sum + (root.children || []).filter((c) =>
-          [c.name, c.summary || '', c.evidence || ''].join(' ').toLowerCase().includes(needle)).length, 0)
-      : data.leaf_count;
-    counter.textContent = `${data.tree.length} 个模块 · 显示 ${shown} 条`;
-    box.innerHTML = panels || '<p class="muted">没有匹配的功能条目，换个关键词试试。</p>';
-  };
-  paint();
-
-  const input = document.getElementById('fn-q');
-  input.oninput = () => {
-    FUNCS.query = input.value;
-    paint();
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
-  };
-  document.getElementById('fn-reset').onclick = () => {
-    FUNCS.query = '';
-    input.value = '';
-    paint();
-    input.focus();
-  };
-  const toggleAll = (open) => box.querySelectorAll('details.fn').forEach((el) => { el.open = open; });
-  document.getElementById('fn-open').onclick = () => toggleAll(true);
-  document.getElementById('fn-close').onclick = () => toggleAll(false);
 }
 
 /* ------------------------------------------------------------------ 视图：架构 */
@@ -1146,32 +1087,11 @@ async function renderArchitecture() {
   draw(`
     ${chainStrip('architecture')}
     <section class="head"><div><h1>系统架构视图</h1>
-      <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div>
-      ${viewToggle('architecture')}</section>
+      <p class="muted">分层组件、层间依赖、入口链路与组件—功能对齐；依赖来自类级调用图。</p></div></section>
     ${viewpointHtml(data.viewpoint)}
-    <div id="arch-map"></div>
-    <div id="arch-list" ${VIEW.architecture === 'map' ? 'hidden' : ''}>
-    <h2>入口与关键路径</h2>
-    <ul class="plain chains">${entries || '<li class="muted">暂无关键路径</li>'}</ul>
-    <h2>外部依赖</h2>
-    ${externalHtml}
-    <h2>分层组件</h2>
-    <div class="layers">${cols || '<p class="muted">暂无架构视图</p>'}</div>
-    <details class="fold">
-      <summary>层间依赖矩阵 <span class="muted">${matrix.layers.length} × ${matrix.layers.length}</span></summary>
-      <table class="matrix"><thead><tr><th>调用方 ↓ / 被调 ↑</th>${matrixHead}</tr></thead>
-        <tbody>${matrixRows || '<tr><td class="muted">暂无数据</td></tr>'}</tbody></table>
-      <p class="muted">格子里的数字是跨层的类级调用条数；对角线表示层内调用。</p>
-    </details>
-    <details class="fold">
-      <summary>组件—功能对齐 <span class="muted">${data.component_functions.length} 组</span></summary>
-      <table><thead><tr><th>组件</th><th>层</th><th>承载的功能条目</th></tr></thead>
-        <tbody>${align || '<tr><td colspan="3" class="muted">暂无功能条目</td></tr>'}</tbody></table>
-    </details>
-    </div>`);
+    <div id="arch-map"></div>`);
 
-  bindViewToggle('architecture', () => renderArchitecture());
-  if (VIEW.architecture === 'map') {
+  {
     document.getElementById('arch-map').appendChild(window.viz.archGraph(data, {
       onFocus: (name) => { location.hash = `#/structure?focus=${encodeURIComponent(String(name).split('(')[0].trim())}`; },
       onImpact: (name) => { location.hash = `#/impact?pid=${state.pid}&cls=${encodeURIComponent(String(name).split('(')[0].trim())}`; },
@@ -1536,32 +1456,20 @@ async function renderImpact() {
         <div><b>${hops}</b><span>最大跳数</span></div>
       </div>
       ${r.dynamic_count ? `<p class="muted small-note">其中 ${r.dynamic_count} 个类是通过「接口 ↔ 实现」或反射字面量推断出来的动态可达，静态调用图里看不到。</p>` : ''}
-      <div id="impact-map"></div>
-      <div id="impact-list" ${VIEW.impact === 'map' ? 'hidden' : ''}>
-      <h2>影响扩散</h2>
-      <div class="impact-flow">${flow}</div>
-      ${chains ? `<h2>示例影响链</h2><ul class="plain chains-list">${chains}</ul>` : ''}
-      <div class="two">
-        <div><h2>涉及的模块</h2>
-          <p class="chips">${r.modules.map((m) => `<span class="chip">${esc(m.name || m)}</span>`).join('') || '<span class="muted">无</span>'}</p></div>
-        <div><h2>涉及的功能</h2>
-          <p class="chips">${uniqueFunctionChips(r.functions)}</p></div>
-      </div>
-      </div>`;
+      <div id="impact-map"></div>`;
+
     impactData = r;
   }
   draw(`
     ${chainStrip('impact')}
     <section class="head"><div><h1>变更影响分析</h1>
-      <p class="muted">沿调用图反向查找：改这个类，哪些类、模块与功能要一起验证。</p></div>
-      ${viewToggle('impact')}</section>
+      <p class="muted">沿调用图反向查找：改这个类，哪些类、模块与功能要一起验证。</p></div></section>
     <div class="form-panel inline">
       <label>起点类<select id="impact-select">${options}</select></label>
       <label>方法<select id="impact-method">${methodOptions}</select></label>
     </div>
     ${result}`);
-  bindViewToggle('impact', () => renderImpact());
-  if (VIEW.impact === 'map' && impactData && window.viz) {
+  if (impactData && window.viz) {
     document.getElementById('impact-map').appendChild(window.viz.impactGraph(impactData, {
       onFocus: (name) => { location.hash = `#/structure?focus=${encodeURIComponent(name)}`; },
     }));
