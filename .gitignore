@@ -25,3 +25,5 @@ node_modules/
 *.log
 .idea/
 .vscode/
+
+demo/backend/server.log*

@@ -144,7 +144,11 @@ function showProgress(s) {
   if (!s || (!s.running && s.status !== 'failed')) { box.hidden = true; return; }
   box.hidden = false;
   box.querySelector('.bar').style.width = `${s.percent || 0}%`;
-  box.querySelector('span').textContent = s.error ? '分析失败' : `${s.percent || 0}% · ${s.step || s.status}`;
+  const detail = (s.error || '').replace(/\s+/g, ' ').trim();
+  box.querySelector('span').textContent = s.error
+    ? `分析失败：${detail.slice(0, 56)}${detail.length > 56 ? '…' : ''}`
+    : `${s.percent || 0}% · ${s.step || s.status}`;
+  box.title = detail || '';
   box.classList.toggle('failed', s.status === 'failed');
 }
 
