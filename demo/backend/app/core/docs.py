@@ -1,3 +1,4 @@
+import os
 # -*- coding: utf-8 -*-
 """文档生成：接口文档、用户手册、项目报告。
 
@@ -5,6 +6,8 @@
 frontend 也可以直接用 html 字段）。
 """
 import html
+import json
+import os
 import re
 
 from .. import db
@@ -121,6 +124,52 @@ def manual_doc(pid):
     return "\n".join(lines)
 
 
+def _architecture_tables(pid):
+    order = ["接入层", "业务层", "数据层", "领域层", "公共层"]
+    classes = db.query("SELECT id, name, layer, module_id FROM classes WHERE project_id=?", (pid,))
+    layers = [name for name in order if any(c["layer"] == name for c in classes)]
+    layers += sorted({c["layer"] for c in classes} - set(order) - {""})
+    pos = {name: i for i, name in enumerate(layers)}
+    layer_of = {row["id"]: row["layer"] for row in classes}
+    cells = [[0 for _ in layers] for _ in layers]
+    for row in db.query("SELECT caller_id, callee_id FROM calls WHERE project_id=? "
+                        "AND callee_id IS NOT NULL", (pid,)):
+        src, dst = layer_of.get(row["caller_id"]), layer_of.get(row["callee_id"])
+        if src in pos and dst in pos:
+            cells[pos[src]][pos[dst]] += 1
+    modules = {row["id"]: row["name"] for row in
+               db.query("SELECT id, name FROM modules WHERE project_id=?", (pid,))}
+    by_name = {row["name"]: row for row in classes}
+    grouped = {}
+    for leaf in db.query("SELECT name, evidence FROM functions WHERE project_id=? "
+                         "AND parent_id IS NOT NULL ORDER BY id", (pid,)):
+        cls = by_name.get((leaf["evidence"] or "").split(".")[0])
+        key = (modules.get(cls["module_id"], "未归属模块") if cls else "未归属模块",
+               cls["layer"] if cls else "其他")
+        grouped.setdefault(key, []).append(leaf["name"])
+    mapping = [{"component": key[0], "layer": key[1], "functions": names[:8]}
+               for key, names in sorted(grouped.items(), key=lambda kv: (-len(kv[1]), kv[0][0]))]
+    return ({"layers": layers, "cells": cells} if any(any(r) for r in cells) else None), mapping[:16]
+
+
+def _naming_row():
+    """命名基线：读 scripts/eval_naming_baseline.py 产出的对照结果。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "..", "..", "..", "docs", "naming-baseline.json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return "结构证据 vs 只看方法名（规则判定，待运行 scripts/eval_naming_baseline.py）"
+    rows = payload.get("results") or []
+    if not rows:
+        return "结构证据 vs 只看方法名（暂无结果）"
+    structured = sum(r["structured"] for r in rows) / len(rows)
+    method_only = sum(r["method_only"] for r in rows) / len(rows)
+    return ("结构证据 %.1f%% vs 只看方法名 %.1f%%（%d 个工程、规则判定）" %
+            (structured * 100, method_only * 100, len(rows)))
+
+
 def report_doc(pid):
     project_row = db.project(pid) or {}
     metrics = _metric_map(pid)
@@ -151,6 +200,24 @@ def report_doc(pid):
         depends = "、".join(db.load_json(component["depends_on"])[:6]) or "—"
         lines.append("- **%s**（%s）：提供 %s；依赖 %s" % (
             component["name"], component["layer"], provides, depends))
+    matrix, mapping = _architecture_tables(pid)
+    lines += ["", "### 3.1 层间依赖矩阵", "",
+              "行是调用方，列是被调方，格子里是跨层的类级调用条数。", ""]
+    if matrix:
+        header = "| 调用方 \\ 被调方 | " + " | ".join(matrix["layers"]) + " |"
+        lines += [header, "|" + " --- |" * (len(matrix["layers"]) + 1)]
+        for name, row in zip(matrix["layers"], matrix["cells"]):
+            lines.append("| %s | %s |" % (name, " | ".join(str(v) for v in row)))
+    else:
+        lines.append("（无跨层调用）")
+    lines += ["", "### 3.2 组件—功能映射", "",
+              "| 组件 | 分层 | 承载功能条目 |", "| --- | --- | --- |"]
+    if mapping:
+        for item in mapping:
+            lines.append("| %s | %s | %s |" % (item["component"], item["layer"],
+                                               "、".join(item["functions"]) or "—"))
+    else:
+        lines.append("| — | — | 未建立映射 |")
     lines += ["", "## 四、属性图统计", "",
               "| 类别 | 数量 | 说明 |", "| --- | --- | --- |"]
     for key, label, note in (
@@ -175,7 +242,7 @@ def report_doc(pid):
               "融合=%.3f、关键词=%.3f |" % (
                   evaluation.get("bm25", 0), evaluation.get("vector", 0),
                   evaluation.get("fusion", 0), evaluation.get("keyword", 0)),
-              "| 功能归纳 | 结构证据 | 功能名与说明 | 抽样人工判定（待补） |", "",
+              "| 功能归纳 | 结构证据 | 功能名与说明 | %s |" % _naming_row(), "",
               "## 六、局限", "",
               "1. 只解析静态结构，动态代理、反射、字符串拼接的类名不在覆盖范围内；",
               "2. 功能命名与摘要是模型输出，评审时需要回指到条目证据；",

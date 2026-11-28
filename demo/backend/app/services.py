@@ -169,10 +169,13 @@ def functions(pid):
                      "AND parent_id IS NULL ORDER BY id", (pid,))
     leaves = db.query("SELECT id, name, summary, evidence, module_id, parent_id FROM functions "
                       "WHERE project_id=? AND parent_id IS NOT NULL ORDER BY id", (pid,))
+    chains = _leaf_chains(pid)
     tree = []
     for root in roots:
         children = [{"id": leaf["id"], "name": leaf["name"], "summary": leaf["summary"],
-                     "evidence": leaf["evidence"], "module_id": leaf["module_id"]}
+                     "evidence": leaf["evidence"], "module_id": leaf["module_id"],
+                     "chain": chains.get((leaf["evidence"] or "").split(".")[0],
+                                         {"callers": [], "callees": []})}
                     for leaf in leaves if leaf["parent_id"] == root["id"]]
         # 这个模块一条功能都没恢复出来时，只剩一个空壳，前端不需要它
         if not children:
@@ -182,6 +185,19 @@ def functions(pid):
     return {"tree": tree, "leaf_count": len(leaves)}
 
 
+def _leaf_chains(pid):
+    """条目级调用链：按 evidence 的类名取 1 跳调用方/被调方（类级）。"""
+    rows = db.query("SELECT id, name FROM classes WHERE project_id=?", (pid,))
+    by_name = {row["name"]: row["id"] for row in rows}
+    cache = {}
+    for name, cid in by_name.items():
+        up = codegraph.callers(pid, cid) or {"nodes": []}
+        down = codegraph.callees(pid, cid) or {"nodes": []}
+        cache[name] = {"callers": [n["name"] for n in up.get("nodes", [])][:6],
+                       "callees": [n["name"] for n in down.get("nodes", [])][:6]}
+    return cache
+
+
 def architecture(pid):
     _project(pid)
     rows = db.query("SELECT id, module_id, name, layer, classes, provides, depends_on "
@@ -189,17 +205,23 @@ def architecture(pid):
     layers = {}
     for row in rows:
         layers.setdefault(row["layer"], []).append({
-            "id": row["id"], "module": row["name"], "name": row["name"],
+            "id": row["id"], "module_id": row["module_id"],
+            "module": row["name"], "name": row["name"],
             "layer": row["layer"],
             "classes": db.load_json(row["classes"]),
             "provides": db.load_json(row["provides"]),
             "depends_on": db.load_json(row["depends_on"]),
         })
-    ordered = [{"name": name, "components": layers[name]}
+    hotspots = _hotspots(pid)
+    hot_by = hotspots["by_component"]
+    ordered = [{"name": name,
+                "components": [dict(c, hot=hot_by.get("%s|%s" % (c["module_id"], c["layer"]), 0))
+                               for c in layers[name]]}
                for name in LAYER_ORDER if name in layers]
     return {"layers": ordered,
             "matrix": _layer_matrix(pid),
             "component_functions": _component_functions(pid),
+            "hotspots": {"pairs": hotspots["pairs"], "classes": hotspots["classes"]},
             "entries": codegraph.critical_paths(pid, limit=3),
             "externals": [{"name": row["name"], "kind": row["kind"], "count": row["count"]}
                           for row in db.query(
@@ -219,6 +241,40 @@ def architecture(pid):
                                     "依赖边 ↔ 类级调用（calls）"],
                 "references": ["[8]", "[7]", "[9]"],
             }}
+
+
+def _hotspots(pid, limit=6):
+    """耦合热点：跨模块调用最密的模块对，以及跨模块扇入/扇出最高的类。"""
+    classes = db.query("SELECT id, name, layer, module_id FROM classes WHERE project_id=?", (pid,))
+    by_id = {row["id"]: row for row in classes}
+    modules = {row["id"]: row["name"] for row in
+               db.query("SELECT id, name FROM modules WHERE project_id=?", (pid,))}
+    calls = db.query("SELECT caller_id, callee_id FROM calls WHERE project_id=? "
+                     "AND callee_id IS NOT NULL", (pid,))
+    pair_count = {}
+    degree = {}
+    for row in calls:
+        src, dst = by_id.get(row["caller_id"]), by_id.get(row["callee_id"])
+        if not src or not dst or not src["module_id"] or not dst["module_id"]:
+            continue
+        if src["module_id"] == dst["module_id"]:
+            continue
+        key = (src["module_id"], dst["module_id"])
+        pair_count[key] = pair_count.get(key, 0) + 1
+        degree.setdefault(src["id"], [0, 0])[1] += 1
+        degree.setdefault(dst["id"], [0, 0])[0] += 1
+    pairs = [{"from": modules.get(a, "模块%d" % a), "to": modules.get(b, "模块%d" % b),
+              "count": n} for (a, b), n in sorted(pair_count.items(), key=lambda kv: -kv[1])[:limit]]
+    ranked = sorted(degree.items(), key=lambda kv: -(kv[1][0] + kv[1][1]))[:limit]
+    hot_classes = []
+    by_component = {}
+    for cid, (fan_in, fan_out) in ranked:
+        row = by_id[cid]
+        hot_classes.append({"name": row["name"], "module": modules.get(row["module_id"], ""),
+                            "layer": row["layer"], "fan_in": fan_in, "fan_out": fan_out})
+        key = "%s|%s" % (row["module_id"], row["layer"])
+        by_component[key] = by_component.get(key, 0) + 1
+    return {"pairs": pairs, "classes": hot_classes, "by_component": by_component}
 
 
 def _layer_matrix(pid):
@@ -309,7 +365,7 @@ def compare(pid):
         "metrics": metrics,
         "package_modularity": by_key.get("package_modularity", 0),
         "nmi": by_key.get("nmi", 0),
-        "retrieval": evaluation,
+        "retrieval": dict(evaluation, embed_meta=retrieve.index_meta(pid)),
         "history": {"run_at": snapshot["run_at"] if snapshot else "",
                     "previous_run_at": snapshot["previous_run_at"] if snapshot else "",
                     "delta": delta},

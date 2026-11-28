@@ -237,3 +237,24 @@ cd demo/backend
 python -c "from app import db, services; from app.core import pipeline; db.init(); \
 print(services.overview(1)['metrics'])"
 ```
+
+## 补齐说明（对照毕设简介的 5 项差距）
+
+| 差距 | 落点 | 怎么看 |
+| --- | --- | --- |
+| 耦合热点 | `backend/app/services.py` 的 `_hotspots()`；组件带 `hot`，接口返回 `hotspots.pairs/classes` | 架构页展开某层后，热点组件卡片描边为琥珀色，meta 末尾有 `· 热点 n`；检查器列出跨模块耦合 Top 与热点类 |
+| 条目级调用链 | `services.py` 的 `_leaf_chains()`；`functions()` 每条叶子带 `chain` | 功能页点开某模块再点条目，检查器出现「调用链（1 跳）」：调用方 / 被调方 |
+| 矩阵与映射进报告 | `core/docs.py` 的 `_architecture_tables()` | 生成「项目报告」，第三章下有 `3.1 层间依赖矩阵`、`3.2 组件—功能映射` |
+| 命名基线 | `scripts/eval_naming_baseline.py` → `docs/naming-baseline.json`；`docs.py` 的 `_naming_row()` | 报告第五章「功能归纳」一行：`结构证据 95.6% vs 只看方法名 85.6%（2 个工程、规则判定）` |
+| 嵌入模型 | `core/embed.py` + `core/retrieve.py` 的 `_vector_scores()` | 配 `EMBED_BASE_URL / EMBED_API_KEY / EMBED_MODEL` 即走嵌入余弦，未配置自动回落 LSA（96 维），页面对比表不变 |
+
+配置嵌入通道示例：
+
+```bash
+set EMBED_BASE_URL=https://api.example.com/v1
+set EMBED_API_KEY=sk-...
+set EMBED_MODEL=text-embedding-3-small
+python run.py 8100
+```
+
+未配置时 `/api/projects/<id>/compare` 的向量召回即为 LSA 结果，`retrieval.embed_meta` 返回 `{"backend": "lsa", "model": "lsa-96"}`。

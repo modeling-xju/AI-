@@ -294,8 +294,16 @@
             ${chips((nd.module.children || []).map((c) => c.name), 10)}<p class="muted small">双击展开条目。</p>`;
         }
         const leaf = nd.leaf || {};
+        const chain = leaf.chain || {};
+        const chainLine = (list, label) => (list && list.length)
+          ? `<div class="chain-row"><span class="chain-k">${label}</span><span class="chain-v">${esc(list.join('、'))}</span></div>`
+          : '';
+        const chainHtml = (chain.callers || []).length || (chain.callees || []).length
+          ? `<p class="rail-label">调用链（1 跳）</p>${chainLine(chain.callers, '调用方')}${chainLine(chain.callees, '被调方')}`
+          : '';
         return `<p class="insp-title">${esc(leaf.name)}</p>
           ${keyvals([['说明', esc(leaf.summary || '')], ['证据', `<code>${esc(stripPkg(leaf.evidence || ''))}</code>`], ['模块', esc(nd.moduleName || '')]])}
+          ${chainHtml}
           <div class="insp-actions">
             <button class="ghost" data-act="focus" data-value="${esc(leaf.evidence || '')}">在代码结构里定位</button>
             <button class="ghost" data-act="search" data-value="${esc(leaf.name || '')}">按证据检索</button>
@@ -334,7 +342,8 @@
         nodes.push({
           id: `c:${c.name}`, parent: gid, order: ci,
           label: c.name, layer, levelLabel: '组件', color: LAYER_COLOR[layer] || '#64748b',
-          meta: `${(c.classes || []).length} 类 · 依赖 ${(c.depends_on || []).length}`, comp: c,
+          meta: `${(c.classes || []).length} 类 · 依赖 ${(c.depends_on || []).length}${c.hot ? ` · 热点 ${c.hot}` : ''}`,
+          hot: c.hot || 0, comp: c,
         });
       });
     });
@@ -354,13 +363,19 @@
       onPick: (nd) => {
         if (nd.layerNode) {
           const members = comps.filter((c) => (layerOf.get(c.name) || c.layer) === nd.layerNode);
+          const hs = data.hotspots || {};
+          const pairs = (hs.pairs || []).slice(0, 3).map((p) => `${esc(p.from)} → ${esc(p.to)}（${p.count}）`).join('；');
+          const hotCls = (hs.classes || []).slice(0, 3).map((c) => `${esc(c.name)}（入${c.fan_in}/出${c.fan_out}）`).join('；');
           return `<p class="insp-title">${esc(nd.layerNode)}</p>${keyvals([['组件', members.length]])}
-            ${chips(members.map((c) => c.name), 12)}<p class="muted small">双击展开该层组件。</p>`;
+            ${chips(members.map((c) => c.name), 12)}
+            ${pairs ? `<p class="rail-label">跨模块耦合 Top</p><p class="muted small">${pairs}</p>` : ''}
+            ${hotCls ? `<p class="rail-label">热点类</p><p class="muted small">${hotCls}</p>` : ''}
+            <p class="muted small">双击展开该层组件。</p>`;
         }
         const c = nd.comp || {};
         const cls = c.classes || [];
         return `<p class="insp-title">${esc(c.name)}</p>
-          ${keyvals([['分层', esc(c.layer || '')], ['模块', esc(c.module || '—')], ['规模', `${cls.length} 类`], ['依赖', esc((c.depends_on || []).join('、') || '无')]])}
+          ${keyvals([['分层', esc(c.layer || '')], ['模块', esc(c.module || '—')], ['规模', `${cls.length} 类`], ['依赖', esc((c.depends_on || []).join('、') || '无')], ['热点', c.hot ? `${c.hot} 个跨模块类` : '—']])}
           <p class="rail-label">包含的类</p>${chips(cls, 12)}
           <div class="insp-actions">
             <button class="ghost" data-act="focus" data-value="${esc(cls[0] || c.name)}">在代码结构里看这些类</button>

@@ -1248,3 +1248,8 @@ details.hl > summary { border-radius: 3px; }
 .map-shell .insp .insp-h { padding: 10px 12px 6px; }
 .map-shell .insp .insp-b { padding: 0 12px 12px; }
 .map-shell .insp { right: 10px; bottom: 10px; width: 252px; max-height: 40%; }
+
+.map-shell .fg-node.hot .fg-box { stroke: #e8a33d; stroke-width: 1.5; }
+.chain-row { display: flex; gap: 8px; font-size: 11px; line-height: 1.7; }
+.chain-k { flex: none; color: var(--muted); }
+.chain-v { color: var(--fg-text); word-break: break-all; }

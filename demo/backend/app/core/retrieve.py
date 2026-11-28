@@ -10,6 +10,7 @@ import math
 import re
 
 from .. import db
+from . import embed
 from . import knowledge
 
 K1 = 1.5
@@ -126,11 +127,18 @@ def build_index(pid):
 
     vectors, idf = _build_vectors(docs, postings, len(docs))
     latent = _latent_space(vectors, idf, LATENT_DIM)
+    dense = None
+    if embed.available():
+        try:
+            dense = embed.embed([doc["text"] for doc in docs])
+        except Exception:
+            dense = None
     neighbors = _class_neighbors(pid)
     evidence = _evidence_map(pid, docs)
     INDEXES[pid] = {"docs": docs, "postings": postings, "lengths": lengths,
                     "average": average, "vectors": vectors, "idf": idf,
-                    "latent": latent,
+                    "latent": latent, "embed": dense,
+                    "embed_meta": embed.describe(),
                     "neighbors": neighbors, "evidence": evidence, "dim": len(idf),
                     "signature": _signature(pid)}
     return INDEXES[pid]
@@ -272,8 +280,22 @@ def _bm25_scores(index, terms):
     return scores
 
 
-def _vector_scores(index, terms):
-    """向量通道：优先用 LSA 潜在语义向量，numpy 不可用时退回稀疏点积。"""
+def _vector_scores(index, terms, query=None):
+    """向量通道：配置了嵌入模型就走模型；否则 LSA；numpy 不可用再退稀疏点积。"""
+    dense = index.get("embed")
+    if dense and query:
+        try:
+            import numpy as np
+            vec = embed.embed([query])
+            if vec and vec[0]:
+                q = np.array(vec[0], dtype="float32")
+                q /= (float(np.linalg.norm(q)) or 1.0)
+                mat = np.array(dense, dtype="float32")
+                mat /= (np.linalg.norm(mat, axis=1, keepdims=True) + 1e-9)
+                sims = mat.dot(q)
+                return {i: float(v) for i, v in enumerate(sims) if v > 1e-6}
+        except Exception:
+            pass
     idf = index["idf"]
     latent = index.get("latent")
     if latent:
@@ -357,7 +379,7 @@ def _fusion_scores(index, terms, query):
     邻居扩展只在头部命中附近加很小的一档，避免把弱相关条目顶上来。
     """
     bm25 = _bm25_scores(index, terms)
-    vector = _vector_scores(index, terms)
+    vector = _vector_scores(index, terms, query)
     bm25_pos = {doc_id: position for position, doc_id in enumerate(_rank(bm25))}
     vector_pos = {doc_id: position for position, doc_id in enumerate(_rank(vector))}
     missing = 10 ** 6
@@ -394,6 +416,12 @@ def _fusion_scores(index, terms, query):
     return scores
 
 
+def index_meta(pid):
+    """当前索引的向量通道描述（嵌入未配置时为 enabled=False，走 LSA）。"""
+    idx = _index(pid)
+    return idx.get("embed_meta") or {"enabled": False, "kind": "lsa", "dim": LATENT_DIM}
+
+
 def search(pid, query, mode="bm25", k=10):
     index = _index(pid)
     terms = set(tokenize(query))
@@ -402,7 +430,7 @@ def search(pid, query, mode="bm25", k=10):
     if mode == "keyword":
         scores = _keyword_hits(index, query)
     elif mode == "vector":
-        scores = _vector_scores(index, terms)
+        scores = _vector_scores(index, terms, query)
     elif mode == "fusion":
         scores = _fusion_scores(index, terms, query)
     else:

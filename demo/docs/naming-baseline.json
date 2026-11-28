@@ -1,0 +1,585 @@
+{
+  "judge": "规则判定（中文/动词开头/长度/唯一性），非人工判定",
+  "results": [
+    {
+      "pid": 1,
+      "project": "minishop",
+      "leaves": 20,
+      "structured": 0.95,
+      "method_only": 0.925,
+      "delta": 0.025,
+      "detail": [
+        {
+          "evidence": "ProductController.list",
+          "structured": "列出商品",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "ProductController.stock",
+          "structured": "库存商品",
+          "method_only": "库存",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ProductController.detail",
+          "structured": "查看商品",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "CartController.listCart",
+          "structured": "列出购物车",
+          "method_only": "列出购物车",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "CartController.addToCart",
+          "structured": "添加购物车",
+          "method_only": "添加购物车",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "CartController.removeItem",
+          "structured": "移除条目",
+          "method_only": "移除条目",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "CartController.updateCount",
+          "structured": "更新数量",
+          "method_only": "更新数量",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "CartService.addItem",
+          "structured": "添加条目",
+          "method_only": "添加条目",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "OrderController.pay",
+          "structured": "支付订单",
+          "method_only": "支付",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "OrderController.submit",
+          "structured": "提交订单",
+          "method_only": "提交",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "OrderController.cancel",
+          "structured": "取消订单",
+          "method_only": "取消",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "OrderController.detail",
+          "structured": "查看订单",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "PaymentService.charge",
+          "structured": "处理支付",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "OrderService.markPaid",
+          "structured": "标记订单已支付",
+          "method_only": "标记订单已支付",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "OrderService.findOrder",
+          "structured": "查找订单",
+          "method_only": "查找订单",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "OrderService.createOrder",
+          "structured": "创建订单",
+          "method_only": "创建订单",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "UserDao.insert",
+          "structured": "新增用户",
+          "method_only": "新增",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "UserDao.findById",
+          "structured": "查找编号",
+          "method_only": "查找编号",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "UserDao.updateName",
+          "structured": "更新名称",
+          "method_only": "更新名称",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "UserDao.findByPhone",
+          "structured": "查找手机号",
+          "method_only": "查找手机号",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        }
+      ]
+    },
+    {
+      "pid": 3,
+      "project": "SpringBlade",
+      "leaves": 60,
+      "structured": 0.9625,
+      "method_only": 0.7875,
+      "delta": 0.175,
+      "detail": [
+        {
+          "evidence": "NoticeController.list",
+          "structured": "列出通知",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "NoticeController.save",
+          "structured": "保存通知",
+          "method_only": "保存",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "AuthController.token",
+          "structured": "处理令牌",
+          "method_only": "处理令牌",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "SocialController.login",
+          "structured": "登录",
+          "method_only": "登录",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "AuthController.logout",
+          "structured": "登出认证",
+          "method_only": "登出",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "NoticeController.detail",
+          "structured": "查看通知",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "CaptchaTokenGranter.grant",
+          "structured": "验证码令牌处理授权",
+          "method_only": "处理授权",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ITokenGranter.grant",
+          "structured": "令牌处理授权",
+          "method_only": "处理授权",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "PasswordTokenGranter.grant",
+          "structured": "密码令牌处理授权",
+          "method_only": "处理授权",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RefreshTokenGranter.grant",
+          "structured": "刷新令牌处理授权",
+          "method_only": "处理授权",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "SocialTokenGranter.grant",
+          "structured": "社交令牌处理授权",
+          "method_only": "处理授权",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "TokenGranterBuilder.getGranter",
+          "structured": "查询令牌",
+          "method_only": "查询",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "AuthFilter.filter",
+          "structured": "处理认证",
+          "method_only": "处理",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "AuthFilter.isSkip",
+          "structured": "是否认证",
+          "method_only": "是否",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "AuthFilter.unAuth",
+          "structured": "处理认证",
+          "method_only": "处理认证",
+          "score_structured": 0.75,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "CodeController.list",
+          "structured": "列出编号",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "CodeController.copy",
+          "structured": "处理编号",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "CodeController.detail",
+          "structured": "查看编号",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "CodeController.submit",
+          "structured": "提交编号",
+          "method_only": "提交",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "CodeController.remove",
+          "structured": "移除编号",
+          "method_only": "移除",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "OrderController.createOrder",
+          "structured": "创建订单",
+          "method_only": "创建订单",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "StorageClientFallback.deduct",
+          "structured": "处理客户端",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "IDictClientFallback.getList",
+          "structured": "查询客户端降级列表",
+          "method_only": "查询列表",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ISysClient.getDept",
+          "structured": "查询客户端部门",
+          "method_only": "查询部门",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ISysClient.getRole",
+          "structured": "查询客户端角色",
+          "method_only": "查询角色",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ISysClientFallback.getDept",
+          "structured": "查询客户端降级部门",
+          "method_only": "查询部门",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ISysClientFallback.getRole",
+          "structured": "查询客户端降级角色",
+          "method_only": "查询角色",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "DictClient.getList",
+          "structured": "查询字典客户端列表",
+          "method_only": "查询列表",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ApiScopeController.list",
+          "structured": "列出接口权限",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ApiScopeController.save",
+          "structured": "保存接口权限",
+          "method_only": "保存",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "AuthClientController.list",
+          "structured": "列出认证",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "AuthClientController.save",
+          "structured": "保存认证",
+          "method_only": "保存",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "DataScopeController.list",
+          "structured": "列出数据权限",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "DataScopeController.save",
+          "structured": "保存数据权限",
+          "method_only": "保存",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "DeptController.list",
+          "structured": "列出部门",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "DeptController.tree",
+          "structured": "处理部门",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ParamController.list",
+          "structured": "列出参数",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ParamController.detail",
+          "structured": "查看参数",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ParamController.submit",
+          "structured": "提交参数",
+          "method_only": "提交",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ParamController.remove",
+          "structured": "移除参数",
+          "method_only": "移除",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "ParamServiceImpl.selectParamPage",
+          "structured": "查询参数分页",
+          "method_only": "查询参数分页",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "RegionController.list",
+          "structured": "列出区域",
+          "method_only": "列出",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RegionController.save",
+          "structured": "保存区域",
+          "method_only": "保存",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RegionController.detail",
+          "structured": "查看区域",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RegionController.update",
+          "structured": "更新区域",
+          "method_only": "更新",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "RegionController.submit",
+          "structured": "提交区域",
+          "method_only": "提交",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RegionController.remove",
+          "structured": "移除区域",
+          "method_only": "移除",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RegionController.select",
+          "structured": "查询区域",
+          "method_only": "查询",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "RegionController.lazyList",
+          "structured": "列出区域",
+          "method_only": "列出",
+          "score_structured": 0.75,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "IDictService.tree",
+          "structured": "处理字典",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "IMenuService.tree",
+          "structured": "处理菜单",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "IRoleService.tree",
+          "structured": "处理角色",
+          "method_only": "处理",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogApiController.list",
+          "structured": "列出接口日志",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogErrorController.list",
+          "structured": "列出错误日志",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogUsualController.list",
+          "structured": "列出常规日志",
+          "method_only": "列出",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogApiController.detail",
+          "structured": "查看接口日志",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogErrorController.detail",
+          "structured": "查看错误日志",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogUsualController.detail",
+          "structured": "查看常规日志",
+          "method_only": "查看",
+          "score_structured": 1.0,
+          "score_method_only": 0.75
+        },
+        {
+          "evidence": "LogClient.saveApiLog",
+          "structured": "保存接口日志",
+          "method_only": "保存接口日志",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        },
+        {
+          "evidence": "LogClient.saveUsualLog",
+          "structured": "保存日志",
+          "method_only": "保存日志",
+          "score_structured": 1.0,
+          "score_method_only": 1.0
+        }
+      ]
+    }
+  ]
+}

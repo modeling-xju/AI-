@@ -314,7 +314,7 @@
         const meta = nd.meta
           ? `<text class="fg-meta" x="10" y="32" font-size="9.5">${esc(clip(nd.meta, nd.w - 16))}</text>`
           : '';
-        return `<g class="fg-node" data-id="${esc(nd.id)}" transform="translate(${x},${y})">
+        return `<g class="fg-node${nd.hot ? ' hot' : ''}" data-id="${esc(nd.id)}" transform="translate(${x},${y})">
           <rect class="fg-box" width="${nd.w}" height="${nd.h}" rx="6"></rect>
           <rect width="3" height="${nd.h}" rx="1.5" fill="${color}"></rect>
           <text class="fg-name" x="10" y="${nameY}" font-size="11.5">${esc(label)}</text>
